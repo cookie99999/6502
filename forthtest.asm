@@ -44,9 +44,9 @@
 	link .set 0
 	
 	.macro defword name, namelen, flags, label
-.ident(.sprintf("name_%s", label)):
+.ident(.sprintf("name_%s", .string(label))):
 	.word link
-	link .set .sprintf("name_%s", label)
+	link .set .concat("name_", label)
 	.ifnblank flags
 	.byte flags + namelen
 	.else
@@ -59,9 +59,9 @@
 	.endmacro
 
 	.macro defcode name, namelen, flags, label
-.ident(.sprintf("name_%s", label)):
+.ident(.sprintf("name_%s", .string(label))):
 	.word link
-	link .set .sprintf("name_%s", label)
+	link .set .sprintf("name_%s", .string(label))
 	.ifnblank flags
 	.byte flags + namelen
 	.else
@@ -69,8 +69,8 @@
 	.endif
 	.byte name
 .ident(label):
-	.word .ident(.sprintf("code_%s", label))
-	.ident(.sprintf("code_%s", label)):
+	.word .ident(.concat("code_", label))
+	.ident(.concat("code_", label)):
 .endmacro
 
 	defcode "DROP", 4, , DROP ; ( -- )
