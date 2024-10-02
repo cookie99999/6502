@@ -7,4 +7,5 @@
 *.pin
 *.jed
 *.lst
+*.nes
 emu6502

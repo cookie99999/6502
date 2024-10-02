@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <iostream>
+#include <cstdio>
 
 #define F_N 0b10000000
 #define F_V 0b01000000
@@ -10,25 +11,87 @@
 #define F_Z 0b00000010
 #define F_C 0b00000001
 
+enum AddrModes {
+  AD_IMPL, AD_IMM, AD_ABS, AD_ZP, AD_ABSX, AD_ABSY, AD_ZPX, AD_ZPY, AD_IND, AD_XIND, AD_INDY, AD_REL, AD_ACC
+};
+
 struct Instruction {
     uint8_t opcode;
     short bytes;
     short cycles;
+    AddrModes mode;
     const char *mnemonic;
 
-    Instruction(uint8_t o, short b, short c, const char *m) : opcode(o), bytes(b), cycles(c), mnemonic(m) {}
+    Instruction(uint8_t o, short b, short c, const char *m) : opcode(o), bytes(b), cycles(c), mode(AD_IMM), mnemonic(m) {}
+    Instruction(uint8_t o, short b, short c, AddrModes mo, const char *m) : opcode(o), bytes(b), cycles(c), mode(mo), mnemonic(m) {}
     Instruction() {}
 };
 
 Instruction instr_set[256] = {
-  {0x00, 1, 7, "BRK"}, {0x01, 2, 6, "ORA"}, {0x02, 1, 1, "UNP"}, {0x03, 1, 1, "UNP"},
-  {0x04, 1, 1, "UNP"}, {0x05, 2, 3, "ORA"}, {0x06, 2, 5, "ASL"}, {0x07, 1, 1, "UNP"},
-  {0x08, 1, 3, "PHP"}, {0x09, 2, 2, "ORA"}, {0x0a, 1, 2, "ASL"}, {0x0b, 1, 1, "UNP"},
-  {0x0c, 1, 1, "UNP"}, {0x0d, 3, 4, "ORA"}, {0x0e, 3, 6, "ASL"}, {0x0f, 1, 1, "UNP"},
-  {0x10, 2, 2, "BPL"}, {0x11, 2, 5, "ORA"}, {0x12, 1, 1, "UNP"}, {0x13, 1, 1, "UNP"},
-  {0x14, 1, 1, "UNP"}, {0x15, 2, 4, "ORA"}, {0x16, 2, 6, "ASL"}, {0x17, 1, 1, "UNP"},
-  {0x18, 1, 2, "CLC"}, {0x19, 3, 4, "ORA"}, {0x1a, 1, 1, "UNP"}, {0x1b, 1, 1, "UNP"},
-  {0x1c, 1, 1, "UNP"}, {0x1d, 3, 4, "ORA"}, {0x1e, 3, 7, "ASL"}, {0x1f, 1, 1, "UNP"}
+  {0x00, 1, 7, AD_IMPL, "BRK"}, {0x01, 2, 6, AD_XIND, "ORA"}, {0x02, 1, 1, AD_IMPL, "UNP"}, {0x03, 1, 1, AD_IMPL, "UNP"},
+  {0x04, 1, 1, AD_IMPL, "UNP"}, {0x05, 2, 3, AD_ZP, "ORA"}, {0x06, 2, 5, AD_ACC, "ASL"}, {0x07, 1, 1, AD_IMPL, "UNP"},
+  {0x08, 1, 3, AD_IMPL, "PHP"}, {0x09, 2, 2, AD_IMM, "ORA"}, {0x0a, 1, 2, AD_ACC, "ASL"}, {0x0b, 1, 1, AD_IMPL, "UNP"},
+  {0x0c, 1, 1, AD_IMPL, "UNP"}, {0x0d, 3, 4, AD_ABS, "ORA"}, {0x0e, 3, 6, AD_ABS, "ASL"}, {0x0f, 1, 1, AD_IMPL, "UNP"},
+  {0x10, 2, 2, AD_REL, "BPL"}, {0x11, 2, 5, AD_INDY, "ORA"}, {0x12, 1, 1, AD_IMPL, "UNP"}, {0x13, 1, 1, AD_IMPL, "UNP"},
+  {0x14, 1, 1, AD_IMPL, "UNP"}, {0x15, 2, 4, AD_ZPX, "ORA"}, {0x16, 2, 6, AD_ZPX, "ASL"}, {0x17, 1, 1, AD_IMPL, "UNP"},
+  {0x18, 1, 2, AD_IMPL, "CLC"}, {0x19, 3, 4, AD_ABSY, "ORA"}, {0x1a, 1, 1, AD_IMPL, "UNP"}, {0x1b, 1, 1, AD_IMPL, "UNP"},
+  {0x1c, 1, 1, AD_IMPL, "UNP"}, {0x1d, 3, 4, AD_ABSX, "ORA"}, {0x1e, 3, 7, AD_ABSX, "ASL"}, {0x1f, 1, 1, AD_IMPL, "UNP"},
+  {0x20, 3, 6, AD_ABS, "JSR"}, {0x21, 2, 6, AD_XIND, "AND"}, {0x22, 1, 1, AD_IMPL, "UNP"}, {0x23, 1, 1, AD_IMPL, "UNP"},
+  {0x24, 2, 3, AD_ZP, "BIT"}, {0x25, 2, 3, AD_ZP, "AND"}, {0x26, 2, 5, AD_ZP, "ROL"}, {0x27, 1, 1, AD_IMPL, "UNP"},
+  {0x28, 1, 4, AD_IMPL, "PLP"}, {0x29, 2, 2, AD_IMM, "AND"}, {0x2a, 1, 2, AD_ACC, "ROL"}, {0x2b, 1, 1, AD_IMPL, "UNP"},
+  {0x2c, 3, 4, AD_ABS, "BIT"}, {0x2d, 3, 4, AD_ABS, "AND"}, {0x2e, 3, 6, AD_ABS, "ROL"}, {0x2f, 1, 1, AD_IMPL, "UNP"},
+  {0x30, 2, 2, AD_REL, "BMI"}, {0x31, 2, 5, AD_INDY, "AND"}, {0x32, 1, 1, AD_IMPL, "UNP"}, {0x33, 1, 1, AD_IMPL, "UNP"},
+  {0x34, 1, 1, AD_IMPL, "UNP"}, {0x35, 2, 4, AD_ZPX, "AND"}, {0x36, 2, 6, AD_ZPX, "ROL"}, {0x37, 1, 1, AD_IMPL, "UNP"},
+  {0x38, 1, 2, AD_IMPL, "SEC"}, {0x39, 3, 4, AD_ABSY, "AND"}, {0x3a, 1, 1, AD_IMPL, "UNP"}, {0x3b, 1, 1, AD_IMPL, "UNP"},
+  {0x3c, 1, 1, AD_IMPL, "UNP"}, {0x3d, 3, 4, AD_ABSX, "AND"}, {0x3e, 3, 7, AD_ABSX, "ROL"}, {0x3f, 1, 1, AD_IMPL, "UNP"},
+  {0x40, 1, 6, AD_IMPL, "RTI"}, {0x41, 2, 6, AD_XIND, "EOR"}, {0x42, 1, 1, AD_IMPL, "UNP"}, {0x43, 1, 1, AD_IMPL, "UNP"},
+  {0x44, 1, 1, AD_IMPL, "UNP"}, {0x45, 2, 4, AD_ZP, "EOR"}, {0x46, 2, 5, AD_ZP, "LSR"}, {0x47, 1, 1, AD_IMPL, "UNP"},
+  {0x48, 1, 3, AD_IMPL, "PHA"}, {0x49, 2, 2, AD_IMM, "EOR"}, {0x4a, 1, 2, AD_ACC, "LSR"}, {0x4b, 1, 1, AD_IMPL, "UNP"},
+  {0x4c, 3, 3, AD_ABS, "JMP"}, {0x4d, 3, 4, AD_ABS, "EOR"}, {0x4e, 3, 6, AD_ABS, "LSR"}, {0x4f, 1, 1, AD_IMPL, "UNP"},
+  {0x50, 2, 2, AD_REL, "BVC"}, {0x51, 2, 5, AD_INDY, "EOR"}, {0x52, 1, 1, AD_IMPL, "UNP"}, {0x53, 1, 1, AD_IMPL, "UNP"},
+  {0x54, 1, 1, AD_IMPL, "UNP"}, {0x55, 2, 4, AD_ZPX, "EOR"}, {0x56, 2, 6, AD_ZPX, "LSR"}, {0x57, 1, 1, AD_IMPL, "UNP"},
+  {0x58, 1, 2, AD_IMPL, "CLI"}, {0x59, 3, 4, AD_ABSY, "EOR"}, {0x5a, 1, 1, AD_IMPL, "UNP"}, {0x5b, 1, 1, AD_IMPL, "UNP"},
+  {0x5c, 1, 1, AD_IMPL, "UNP"}, {0x5d, 3, 4, AD_ABSX, "EOR"}, {0x5e, 3, 7, AD_ABSX, "LSR"}, {0x5f, 1, 1, AD_IMPL, "UNP"},
+  {0x60, 1, 6, AD_IMPL, "RTS"}, {0x61, 2, 6, AD_XIND, "ADC"}, {0x62, 1, 1, AD_IMPL, "UNP"}, {0x63, 1, 1, AD_IMPL, "UNP"},
+  {0x64, 1, 1, AD_IMPL, "UNP"}, {0x65, 2, 3, AD_ZP, "ADC"}, {0x66, 2, 5, AD_ZP, "ROR"}, {0x67, 1, 1, AD_IMPL, "UNP"},
+  {0x68, 1, 4, AD_IMPL, "PLA"}, {0x69, 2, 2, AD_IMM, "ADC"}, {0x6a, 1, 2, AD_ACC, "ROR"}, {0x6b, 1, 1, AD_IMPL, "UNP"},
+  {0x6c, 3, 5, AD_IND, "JMP"}, {0x6d, 3, 4, AD_ABS, "ADC"}, {0x6e, 3, 6, AD_ABS, "ROR"}, {0x6f, 1, 1, AD_IMPL, "UNP"},
+  {0x70, 2, 2, AD_REL, "BVS"}, {0x71, 2, 5, AD_INDY, "ADC"}, {0x72, 1, 1, AD_IMPL, "UNP"}, {0x73, 1, 1, AD_IMPL, "UNP"},
+  {0x74, 1, 1, AD_IMPL, "UNP"}, {0x75, 2, 4, AD_ZPX, "ADC"}, {0x76, 2, 6, AD_ZPX, "ROR"}, {0x77, 1, 1, AD_IMPL, "UNP"},
+  {0x78, 1, 2, AD_IMPL, "SEI"}, {0x79, 3, 4, AD_ABSY, "ADC"}, {0x7a, 1, 1, AD_IMPL, "UNP"}, {0x7b, 1, 1, AD_IMPL, "UNP"},
+  {0x7c, 1, 1, AD_IMPL, "UNP"}, {0x7d, 3, 4, AD_ABSX, "ADC"}, {0x7e, 3, 7, AD_ABSX, "ROR"}, {0x7f, 1, 1, AD_IMPL, "UNP"},
+  {0x80, 1, 1, AD_IMPL, "UNP"}, {0x81, 2, 6, AD_XIND, "STA"}, {0x82, 1, 1, AD_IMPL, "UNP"}, {0x83, 1, 1, AD_IMPL, "UNP"},
+  {0x84, 2, 3, AD_ZP, "STY"}, {0x85, 2, 3, AD_ZP, "STA"}, {0x86, 2, 3, AD_ZP, "STX"}, {0x87, 1, 1, AD_IMPL, "UNP"},
+  {0x88, 1, 2, AD_IMPL, "DEY"}, {0x89, 1, 1, AD_IMPL, "UNP"}, {0x8a, 1, 2, AD_IMPL, "TXA"}, {0x8b, 1, 1, AD_IMPL, "UNP"},
+  {0x8c, 3, 4, AD_ABS, "STY"}, {0x8d, 3, 4, AD_ABS, "STA"}, {0x8e, 3, 4, AD_ABS, "STX"}, {0x8f, 1, 1, AD_IMPL, "UNP"},
+  {0x90, 2, 2, AD_REL, "BCC"}, {0x91, 2, 6, AD_INDY, "STA"}, {0x92, 1, 1, AD_IMPL, "UNP"}, {0x93, 1, 1, AD_IMPL, "UNP"},
+  {0x94, 2, 4, AD_ZPX, "STY"}, {0x95, 2, 4, AD_ZPX, "STA"}, {0x96, 2, 4, AD_ZPY, "STX"}, {0x97, 1, 1, AD_IMPL, "UNP"},
+  {0x98, 1, 2, AD_IMPL, "TYA"}, {0x99, 3, 5, AD_ABSY, "STA"}, {0x9a, 1, 2, AD_IMPL, "TXS"}, {0x9b, 1, 1, AD_IMPL, "UNP"},
+  {0x9c, 1, 1, AD_IMPL, "UNP"}, {0x9d, 3, 5, AD_ABSX, "STA"}, {0x9e, 1, 1, AD_IMPL, "UNP"}, {0x9f, 1, 1, AD_IMPL, "UNP"},
+  {0xa0, 2, 2, AD_IMM, "LDY"}, {0xa1, 2, 6, AD_XIND, "LDA"}, {0xa2, 2, 2, AD_IMM, "LDX"}, {0xa3, 1, 1, AD_IMPL, "UNP"},
+  {0xa4, 2, 3, AD_ZP, "LDY"}, {0xa5, 2, 3, AD_ZP, "LDA"}, {0xa6, 2, 3, AD_ZP, "LDX"}, {0xa7, 1, 1, AD_IMPL, "UNP"},
+  {0xa8, 1, 2, AD_IMPL, "TAY"}, {0xa9, 2, 2, AD_IMM, "LDA"}, {0xaa, 1, 2, AD_IMPL, "TAX"}, {0xab, 1, 1, AD_IMPL, "UNP"},
+  {0xac, 3, 4, AD_ABS, "LDY"}, {0xad, 3, 4, AD_ABS, "LDA"}, {0xae, 3, 4, AD_ABS, "LDX"}, {0xaf, 1, 1, AD_IMPL, "UNP"},
+  {0xb0, 2, 2, AD_REL, "BCS"}, {0xb1, 2, 5, AD_INDY, "LDA"}, {0xb2, 1, 1, AD_IMPL, "UNP"}, {0xb3, 1, 1, AD_IMPL, "UNP"},
+  {0xb4, 2, 4, AD_ZPX, "LDY"}, {0xb5, 2, 4, AD_ZPX, "LDA"}, {0xb6, 2, 4, AD_ZPY, "LDX"}, {0xb7, 1, 1, AD_IMPL, "UNP"},
+  {0xb8, 1, 2, AD_IMPL, "CLV"}, {0xb9, 3, 4, AD_ABSY, "LDA"}, {0xba, 1, 2, AD_IMPL, "TSX"}, {0xbb, 1, 1, AD_IMPL, "UNP"},
+  {0xbc, 3, 4, AD_ABSX, "LDY"}, {0xbd, 3, 4, AD_ABSX, "LDA"}, {0xbe, 3, 4, AD_ABSY, "LDX"}, {0xbf, 1, 1, AD_IMPL, "UNP"},
+  {0xc0, 2, 2, AD_IMM, "CPY"}, {0xc1, 2 ,6, AD_XIND, "CMP"}, {0xc2, 1, 1, AD_IMPL, "UNP"}, {0xc3, 1, 1, AD_IMPL, "UNP"},
+  {0xc4, 2, 3, AD_ZP, "CPY"}, {0xc5, 2, 3, AD_ZP, "CMP"}, {0xc6, 2, 5, AD_ZP, "DEC"}, {0xc7, 1, 1, AD_IMPL, "UNP"},
+  {0xc8, 1, 2, AD_IMPL, "INY"}, {0xc9, 2, 2, AD_IMM, "CMP"}, {0xca, 1, 2, AD_IMPL, "DEX"}, {0xcb, 1, 1, AD_IMPL, "UNP"},
+  {0xcc, 3, 4, AD_ABS, "CPY"}, {0xcd, 3, 4, AD_ABS, "CMP"}, {0xce, 3, 6, AD_ABS, "DEC"}, {0xcf, 1, 1, AD_IMPL, "UNP"},
+  {0xd0, 2, 2, AD_REL, "BNE"}, {0xd1, 2, 5, AD_INDY, "CMP"}, {0xd2, 1, 1, AD_IMPL, "UNP"}, {0xd3, 1, 1, AD_IMPL, "UNP"},
+  {0xd4, 1, 1, AD_IMPL, "UNP"}, {0xd5, 2, 4, AD_ZPX, "CMP"}, {0xd6, 2, 6, AD_ZPX, "DEC"}, {0xd7, 1, 1, AD_IMPL, "UNP"},
+  {0xd8, 1, 2, AD_IMPL, "CLD"}, {0xd9, 3, 4, AD_ABSY, "CMP"}, {0xda, 1, 1, AD_IMPL, "UNP"}, {0xdb, 1, 1, AD_IMPL, "UNP"},
+  {0xdc, 1, 1, AD_IMPL, "UNP"}, {0xdd, 3, 4, AD_ABSX, "CMP"}, {0xde, 3 ,7, AD_ABSX, "DEC"}, {0xdf, 1, 1, AD_IMPL, "UNP"},
+  {0xe0, 2, 2, AD_IMM, "CPX"}, {0xe1, 2, 6, AD_XIND, "SBC"}, {0xe2, 1, 1, AD_IMPL, "UNP"}, {0xe3, 1, 1, AD_IMPL, "UNP"},
+  {0xe4, 2, 3, AD_ZP, "CPX"}, {0xe5, 2, 3, AD_ZP, "SBC"}, {0xe6, 2, 5, AD_ZP, "INC"}, {0xe7, 1, 1, AD_IMPL, "UNP"},
+  {0xe8, 1, 2, AD_IMPL, "INX"}, {0xe9, 2, 2, AD_IMM, "SBC"}, {0xea, 1, 2, AD_IMPL, "NOP"}, {0xeb, 1, 1, AD_IMPL, "UNP"},
+  {0xec, 3, 4, AD_ABS, "CPX"}, {0xed, 3, 4, AD_ABS, "SBC"}, {0xee, 3, 6, AD_ABS, "INC"}, {0xef, 1, 1, AD_IMPL, "UNP"},
+  {0xf0, 2, 2, AD_REL, "BEQ"}, {0xf1, 2, 5, AD_INDY, "SBC"}, {0xf2, 1, 1, AD_IMPL, "UNP"}, {0xf3, 1, 1, AD_IMPL, "UNP"},
+  {0xf4, 1, 1, AD_IMPL, "UNP"}, {0xf5, 2, 4, AD_ZPX, "SBC"}, {0xf6, 2, 6, AD_ZPX, "INC"}, {0xf7, 1, 1, AD_IMPL, "UNP"},
+  {0xf8, 1, 2, AD_IMPL, "SED"}, {0xf9, 3, 4, AD_ABSY, "SBC"}, {0xfa, 1, 1, AD_IMPL, "UNP"}, {0xfb, 1, 1, AD_IMPL, "UNP"},
+  {0xfc, 1, 1, AD_IMPL, "UNP"}, {0xfd, 3, 4, AD_ABSX, "SBC"}, {0xfe, 3, 7, AD_ABSX, "INC"}, {0xff, 1, 1, AD_IMPL, "UNP"}
 };
 
 class CPU {
@@ -43,7 +106,9 @@ public:
   uint8_t *memory;
   int type;
 
-  CPU() : a(0), x(0), y(0), p(0), sp(0xff), memory(nullptr), type(0) {
+  unsigned long long cycles;
+
+  CPU() : a(0), x(0), y(0), p(0), sp(0xff), memory(nullptr), type(0), cycles(0) {
     memory = new uint8_t[0x10000];
 
 
@@ -53,7 +118,24 @@ public:
     delete[] memory;
   }
 
+  uint16_t fetch_addr(uint16_t addr) {
+    uint8_t lo = memory[addr];
+    uint8_t hi = memory[addr + 1];
+    return (uint16_t)((hi << 8) | lo);
+  }
+
+  uint8_t fetch_mem_byte(uint16_t addr) {
+    //todo: consult memory map
+    return memory[addr];
+  }
+
+  void store_mem_byte(uint16_t addr, uint8_t byte) {
+    //todo: consult memory map
+    memory[addr] = byte;
+  }
+
   void reset(bool cold) {
+    cycles = 0;
     pc = (uint16_t)(memory[0xfffd]) << 8 | (uint16_t)(memory[0xfffc]);
     sp -= 3;
     if (cold) {
@@ -63,44 +145,70 @@ public:
     }
   }
 
-  void eval() {
-    //fetch
-    uint8_t opcode = memory[pc];
+  void disas(uint8_t opcode) {
+    printf("$%04X: %s ", pc, instr_set[opcode].mnemonic);
 
-    //ora 01 11 05 15 09 19 0d 1d
-    // 00000001
-    // 00010001
-    // 00000101
-    // 00010101
-    // 00001001
-    // 00011001
-    // 00001101
-    // 00011101
-
-    switch (opcode) {
-      case 0x00:
-      case 0x01:
-      case 0x02:
-      case 0x03:
-      case 0x04:
-      case 0x05:
-      case 0x06:
-      case 0x07:
-      case 0x08:
-      case 0x09:
-      case 0x0a:
-      case 0x0b:
-      case 0x0c:
-      case 0x0d:
-      case 0x0e:
-      case 0x0f:
-        std::cout << instr_set[opcode].mnemonic << std::endl;
-        pc += instr_set[opcode].bytes;
+    switch (instr_set[opcode].mode) {
+      case AD_IMM:
+        printf("#$%02X", memory[pc + 1]);
         break;
-      default:
-        //std::cout << "UNIMP" << std::endl;
-        pc += 1;
+      case AD_ABS:
+        printf("$%04X", fetch_addr(pc + 1));
+        break;
+      case AD_ZP:
+        printf("$%04X", memory[pc + 1]);
+        break;
+      case AD_ABSX:
+        printf("$%04X, X", fetch_addr(pc + 1));
+        break;
+      case AD_ABSY:
+        printf("$%04X, Y", fetch_addr(pc + 1));
+        break;
+      case AD_ZPX:
+        printf("$%04X, X", memory[pc + 1]);
+        break;
+      case AD_ZPY:
+        printf("$%04X, Y", memory[pc + 1]);
+        break;
+      case AD_IND:
+        printf("($%04X)", fetch_addr(pc + 1));
+        break;
+      case AD_XIND:
+        printf("($%04X, X)", memory[pc + 1]);
+        break;
+      case AD_INDY:
+        printf("($%04X), Y", memory[pc + 1]);
+        break;
+      case AD_REL:
+        printf("$%04X", pc + (int8_t)memory[pc + 1]);
+        break;
+      case AD_ACC:
+        printf("A");
+        break;
+      case AD_IMPL:
         break;
     }
+    printf("\n");
+  }
+
+  int eval() {
+    //fetch
+    uint8_t opcode = memory[pc];
+    disas(opcode);
+
+    switch (opcode) {
+      case 0x00: //BRK
+        return 1;
+        break;
+      case 0x4c:
+      case 0x6c: //JMP
+        pc = instr_set[opcode].mode == AD_ABS ? fetch_addr(pc + 1) : fetch_addr(fetch_addr(pc + 1));
+        break;
+      default:
+        pc += instr_set[opcode].bytes;
+        break;
+    }
+
+    return 0;
   }
 };
