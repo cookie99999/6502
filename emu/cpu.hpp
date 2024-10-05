@@ -360,6 +360,26 @@ public:
         p |= F_I;
         pc += instr_set[opcode].bytes;
         break;
+      case 0x48: //PHA
+        push_byte(a);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x08: //PHP
+        push_byte(p);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x68: //PLA
+        a = pop_byte();
+        if (a & 0b10000000)
+          p |= F_N;
+        if (a == 0)
+          p |= F_Z;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x28: //PLP
+        p = pop_byte();
+        pc += instr_set[opcode].bytes;
+        break;
       default:
         pc += instr_set[opcode].bytes;
         break;
