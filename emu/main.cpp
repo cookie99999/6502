@@ -55,8 +55,10 @@ int main(int argc, char **argv) {
   for (;;) {
     if (cpu.eval())
       break;
-    if (ss)
+    if (ss) {
+      cpu.dbg_print();
       std::cin.ignore();
+    }
   }
   if (std::string(argv[1]).find(".nes") != std::string::npos)
     printf("$0002 = #$%02X $0003 = #$%02X\n", cpu.memory[0x02], cpu.memory[0x03]);

@@ -134,6 +134,37 @@ public:
     memory[addr] = byte;
   }
 
+  void push_addr(uint16_t addr) {
+    memory[0x0100 + sp] = (uint8_t)(addr >> 8) & 0xff;
+    memory[0x0100 + sp - 1] = (uint8_t)(addr & 0xff);
+    sp -= 2;
+  }
+
+  void push_byte(uint8_t byte) {
+    memory[0x0100 + sp] = byte;
+    sp--;
+  }
+
+  uint16_t pop_addr() {
+    sp += 2;
+    uint16_t addr = (uint16_t)((memory[0x0100 + sp] << 8) | (memory[0x0100 + sp - 1]));
+    return addr;
+  }
+
+  uint8_t pop_byte() {
+    sp++;
+    return memory[0x0100 + sp];
+  }
+
+  void irq() {
+    if (p & F_I)
+      return;
+    push_addr(pc);
+    push_byte(p);
+    p |= F_I;
+    pc = fetch_addr(0xfffe);
+  }
+
   void reset(bool cold) {
     cycles = 0;
     pc = (uint16_t)(memory[0xfffd]) << 8 | (uint16_t)(memory[0xfffc]);
@@ -143,6 +174,13 @@ public:
       sp = 0xfd;
       p = 0 | F_I | F_5;
     }
+  }
+
+  void dbg_print() {
+    printf("NV-BDIZC PC $%04X SP $01%02X P #$%02X\n", pc, sp, p);
+    printf("%08b A #$%02X X #$%02X Y #$%02X CYC %llu\n", p, a, x, y, cycles);
+    printf("STACK LAST BYTE #$%02X STACK LAST WORD #$%04X", memory[0x0100 + sp + 1],
+           (uint16_t)((memory[0x0100 + sp + 2] << 8) | (memory[0x0100 + sp + 1])));
   }
 
   void disas(uint8_t opcode) {
@@ -195,14 +233,104 @@ public:
     //fetch
     uint8_t opcode = memory[pc];
     disas(opcode);
+    cycles += instr_set[opcode].cycles;
 
     switch (opcode) {
+      case 0xea: //NOP
+        pc += instr_set[opcode].bytes;
+        break;
       case 0x00: //BRK
+        pc += 2;
+        irq();
         return 1;
         break;
       case 0x4c:
       case 0x6c: //JMP
         pc = instr_set[opcode].mode == AD_ABS ? fetch_addr(pc + 1) : fetch_addr(fetch_addr(pc + 1));
+        break;
+      case 0x20: //JSR
+        push_addr(pc + 2);
+        pc = fetch_addr(pc + 1);
+        break;
+      case 0x40: //RTI
+        p = pop_byte();
+        pc = pop_addr();
+        break;
+      case 0x60: //RTS
+        pc = pop_addr();
+        pc++;
+        break;
+      case 0x90: //BCC
+        if (!(p & F_C)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
+        break;
+      case 0xB0: //BCS
+        if ((p & F_C)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
+        break;
+      case 0xF0: //BEQ
+        if ((p & F_Z)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
+        break;
+      case 0x30: //BMI
+        if ((p & F_N)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
+        break;
+      case 0xD0: //BNE
+        if (!(p & F_Z)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
+        break;
+      case 0x10: //BPL
+        if (!(p & F_N)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
+        break;
+      case 0x50: //BVC
+        if (!(p & F_V)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
+        break;
+      case 0x70: //BVS
+        if ((p & F_V)) {
+          cycles += 1;
+          pc += (int8_t)(memory[pc + 1]);
+          //todo: add another cycle if page boundary is crossed
+        } else {
+          pc += instr_set[opcode].bytes;
+        }
         break;
       default:
         pc += instr_set[opcode].bytes;
