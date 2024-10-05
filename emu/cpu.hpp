@@ -332,6 +332,34 @@ public:
           pc += instr_set[opcode].bytes;
         }
         break;
+      case 0x18: //CLC
+        p &= ~(F_C);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xD8: //CLD
+        p &= ~(F_D);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x58: //CLI
+        p &= ~(F_I);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xB8: //CLV
+        p &= ~(F_V);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x38: //SEC
+        p |= F_C;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xF8: //SED
+        p |= F_D;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x78: //SEI
+        p |= F_I;
+        pc += instr_set[opcode].bytes;
+        break;
       default:
         pc += instr_set[opcode].bytes;
         break;
