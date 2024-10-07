@@ -314,7 +314,7 @@ public:
         store_addr = fetch_addr(fetch_mem_byte(pc + 1)) + y;
         break;
       default:
-        printf("Illegal addressing mode in store instruction\n");
+        break;
     }
 
     switch (opcode) {
@@ -571,6 +571,40 @@ public:
       case 0x84:
       case 0x94: //STY
         memory[store_addr] = y;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xa: //TAX
+        x = a;
+        p = (x == 0) ? p | F_Z : p & ~F_Z;
+        p = (x & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xa8: //TAY
+        y = a;
+        p = (y == 0) ? p | F_Z : p & ~F_Z;
+        p = (y & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xba: //TSX
+        x = sp;
+        p = (x == 0) ? p | F_Z : p & ~F_Z;
+        p = (x & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x8a: //TXA
+        a = x;
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x9a: //TXS
+        sp = x;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x98: //TYA
+        a = y;
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
         pc += instr_set[opcode].bytes;
         break;
       default:
