@@ -156,6 +156,16 @@ public:
     return memory[0x0100 + sp];
   }
 
+  void branch(uint8_t opcode, uint8_t flag, int8_t offset) {
+    if ((p & flag)) {
+      cycles += 1;
+      pc += offset;
+      //todo: add another cycle if page boundary is crossed
+    } else {
+      pc += instr_set[opcode].bytes;
+    }
+  }
+
   void irq() {
     if (p & F_I)
       return;
@@ -230,13 +240,82 @@ public:
   }
 
   int eval() {
-    uint8_t operand, tmp; //todo: get operand before decode to reduce duplicate code
-    //good place to check page cross too
-
     //fetch
     uint8_t opcode = memory[pc];
     disas(opcode);
     cycles += instr_set[opcode].cycles;
+
+    uint8_t operand, tmp;
+    uint16_t store_addr;
+    //todo: extra cycles on page cross for post indexed modes
+    //TODO IMPORTANT zero page wrap just put a modulo dumb shit
+    switch (instr_set[opcode].mode) {
+      case AD_IMPL:
+        break;
+      case AD_ACC:
+        operand = a;
+        break;
+      case AD_REL: //remember to cast to signed
+      case AD_IMM:
+        operand = fetch_mem_byte(pc + 1);
+        break;
+      case AD_ABS:
+        operand = fetch_mem_byte(fetch_addr(pc + 1));
+        break;
+      case AD_ABSX:
+        operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
+        break;
+      case AD_ABSY:
+        operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
+        break;
+      case AD_ZP:
+        operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
+        break;
+      case AD_ZPX:
+        operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
+        break;
+      case AD_ZPY:
+        operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + y);
+        break;
+      case AD_XIND:
+        operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
+        break;
+      case AD_INDY:
+        operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
+        break;
+      default:
+        printf("Illegal addressing mode\n");
+        break;
+    }
+
+    switch (instr_set[opcode].mode) {
+      case AD_ABS:
+        store_addr = fetch_addr(pc + 1);
+        break;
+      case AD_ABSX:
+        store_addr = fetch_addr(pc + 1) + x;
+        break;
+      case AD_ABSY:
+        store_addr = fetch_addr(pc + 1) + y;
+        break;
+      case AD_ZP:
+        store_addr = (uint16_t)fetch_mem_byte(pc + 1);
+        break;
+      case AD_ZPX:
+        store_addr = (uint16_t)fetch_mem_byte(pc + 1) + x;
+        break;
+      case AD_ZPY:
+        store_addr = (uint16_t)fetch_mem_byte(pc + 1) + y;
+        break;
+      case AD_XIND:
+        store_addr = fetch_addr(fetch_mem_byte(pc + 1) + x);
+        break;
+      case AD_INDY:
+        store_addr = fetch_addr(fetch_mem_byte(pc + 1)) + y;
+        break;
+      default:
+        printf("Illegal addressing mode in store instruction\n");
+    }
 
     switch (opcode) {
       case 0xea: //NOP
@@ -266,7 +345,7 @@ public:
       case 0x90: //BCC
         if (!(p & F_C)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -275,7 +354,7 @@ public:
       case 0xB0: //BCS
         if ((p & F_C)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -284,7 +363,7 @@ public:
       case 0xF0: //BEQ
         if ((p & F_Z)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -293,7 +372,7 @@ public:
       case 0x30: //BMI
         if ((p & F_N)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -302,7 +381,7 @@ public:
       case 0xD0: //BNE
         if (!(p & F_Z)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -311,7 +390,7 @@ public:
       case 0x10: //BPL
         if (!(p & F_N)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -320,7 +399,7 @@ public:
       case 0x50: //BVC
         if (!(p & F_V)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -329,7 +408,7 @@ public:
       case 0x70: //BVS
         if ((p & F_V)) {
           cycles += 1;
-          pc += (int8_t)(memory[pc + 1]);
+          pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
         } else {
           pc += instr_set[opcode].bytes;
@@ -391,36 +470,6 @@ public:
       case 0x35:
       case 0x21:
       case 0x31: //AND
-        //todo: extra cycles on page cross for post indexed modes
-        switch (instr_set[opcode].mode) {
-          case AD_IMM:
-            operand = fetch_mem_byte(pc + 1);
-            break;
-          case AD_ABS:
-            operand = fetch_mem_byte(fetch_addr(pc + 1));
-            break;
-          case AD_ABSX:
-            operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
-            break;
-          case AD_ABSY:
-            operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
-            break;
-          case AD_ZP:
-            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
-            break;
-          case AD_ZPX:
-            operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
-            break;
-          case AD_XIND:
-            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
-            break;
-          case AD_INDY:
-            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
-            break;
-          default:
-            printf("Illegal addressing mode in AND\n");
-            break;
-        }
         printf("dbg operand = #$%02X\n", operand);
         a &= operand;
         if (a & 0b10000000)
@@ -435,17 +484,6 @@ public:
         break;
       case 0x2c:
       case 0x24: //BIT
-        switch (instr_set[opcode].mode) {
-          case AD_ABS:
-            operand = fetch_mem_byte(fetch_addr(pc + 1));
-            break;
-          case AD_ZP:
-            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
-            break;
-          default:
-            printf("Illegal addressing mode in BIT\n");
-            break;
-        }
         tmp = a & operand;
         p = (operand & F_N) ? p | F_N : p & ~F_N;
         p = (operand & F_V) ? p | F_V : p & ~F_V;
@@ -460,36 +498,6 @@ public:
       case 0x55:
       case 0x41:
       case 0x51: //EOR
-        //todo: extra cycles on page cross for post indexed modes
-        switch (instr_set[opcode].mode) {
-          case AD_IMM:
-            operand = fetch_mem_byte(pc + 1);
-            break;
-          case AD_ABS:
-            operand = fetch_mem_byte(fetch_addr(pc + 1));
-            break;
-          case AD_ABSX:
-            operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
-            break;
-          case AD_ABSY:
-            operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
-            break;
-          case AD_ZP:
-            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
-            break;
-          case AD_ZPX:
-            operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
-            break;
-          case AD_XIND:
-            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
-            break;
-          case AD_INDY:
-            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
-            break;
-          default:
-            printf("Illegal addressing mode in EOR\n");
-            break;
-        }
         printf("dbg operand = #$%02X\n", operand);
         a ^= operand;
         p = (a & F_N) ? p | F_N : p & ~F_N;
@@ -504,40 +512,65 @@ public:
       case 0x15:
       case 0x01:
       case 0x11: //ORA
-        //todo: extra cycles on page cross for post indexed modes
-        switch (instr_set[opcode].mode) {
-          case AD_IMM:
-            operand = fetch_mem_byte(pc + 1);
-            break;
-          case AD_ABS:
-            operand = fetch_mem_byte(fetch_addr(pc + 1));
-            break;
-          case AD_ABSX:
-            operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
-            break;
-          case AD_ABSY:
-            operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
-            break;
-          case AD_ZP:
-            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
-            break;
-          case AD_ZPX:
-            operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
-            break;
-          case AD_XIND:
-            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
-            break;
-          case AD_INDY:
-            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
-            break;
-          default:
-            printf("Illegal addressing mode in ORA\n");
-            break;
-        }
         printf("dbg operand = #$%02X\n", operand);
         a |= operand;
         p = (a & F_N) ? p | F_N : p & ~F_N;
         p = (a == 0) ? p | F_Z : p & ~F_Z;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xa9:
+      case 0xad:
+      case 0xbd:
+      case 0xb9:
+      case 0xa5:
+      case 0xb5:
+      case 0xa1:
+      case 0xb1: //LDA
+        a = operand;
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xa2:
+      case 0xae:
+      case 0xbe:
+      case 0xa6:
+      case 0xb6: //LDX
+        x = operand;
+        p = (x == 0) ? p | F_Z : p & ~F_Z;
+        p = (x & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xa0:
+      case 0xac:
+      case 0xbc:
+      case 0xa4:
+      case 0xb4: //LDY
+        y = operand;
+        p = (y == 0) ? p | F_Z : p & ~F_Z;
+        p = (y & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x8d:
+      case 0x9d:
+      case 0x99:
+      case 0x85:
+      case 0x95:
+      case 0x81:
+      case 0x91: //STA
+        memory[store_addr] = a;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x8e:
+      case 0x86:
+      case 0x96: //STX
+        memory[store_addr] = x;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x8c:
+      case 0x84:
+      case 0x94: //STY
+        memory[store_addr] = y;
         pc += instr_set[opcode].bytes;
         break;
       default:
