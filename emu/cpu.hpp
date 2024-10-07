@@ -230,6 +230,9 @@ public:
   }
 
   int eval() {
+    uint8_t operand, tmp; //todo: get operand before decode to reduce duplicate code
+    //good place to check page cross too
+
     //fetch
     uint8_t opcode = memory[pc];
     disas(opcode);
@@ -380,11 +383,167 @@ public:
         p = pop_byte();
         pc += instr_set[opcode].bytes;
         break;
+      case 0x29:
+      case 0x2d:
+      case 0x3d:
+      case 0x39:
+      case 0x25:
+      case 0x35:
+      case 0x21:
+      case 0x31: //AND
+        //todo: extra cycles on page cross for post indexed modes
+        switch (instr_set[opcode].mode) {
+          case AD_IMM:
+            operand = fetch_mem_byte(pc + 1);
+            break;
+          case AD_ABS:
+            operand = fetch_mem_byte(fetch_addr(pc + 1));
+            break;
+          case AD_ABSX:
+            operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
+            break;
+          case AD_ABSY:
+            operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
+            break;
+          case AD_ZP:
+            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
+            break;
+          case AD_ZPX:
+            operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
+            break;
+          case AD_XIND:
+            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
+            break;
+          case AD_INDY:
+            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
+            break;
+          default:
+            printf("Illegal addressing mode in AND\n");
+            break;
+        }
+        printf("dbg operand = #$%02X\n", operand);
+        a &= operand;
+        if (a & 0b10000000)
+          p |= F_N;
+        else
+          p &= ~F_N;
+        if (a == 0)
+          p |= F_Z;
+        else
+          p &= ~F_Z;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x2c:
+      case 0x24: //BIT
+        switch (instr_set[opcode].mode) {
+          case AD_ABS:
+            operand = fetch_mem_byte(fetch_addr(pc + 1));
+            break;
+          case AD_ZP:
+            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
+            break;
+          default:
+            printf("Illegal addressing mode in BIT\n");
+            break;
+        }
+        tmp = a & operand;
+        p = (operand & F_N) ? p | F_N : p & ~F_N;
+        p = (operand & F_V) ? p | F_V : p & ~F_V;
+        p = (tmp == 0) ? p | F_Z : p & ~F_Z;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x49:
+      case 0x4d:
+      case 0x5d:
+      case 0x59:
+      case 0x45:
+      case 0x55:
+      case 0x41:
+      case 0x51: //EOR
+        //todo: extra cycles on page cross for post indexed modes
+        switch (instr_set[opcode].mode) {
+          case AD_IMM:
+            operand = fetch_mem_byte(pc + 1);
+            break;
+          case AD_ABS:
+            operand = fetch_mem_byte(fetch_addr(pc + 1));
+            break;
+          case AD_ABSX:
+            operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
+            break;
+          case AD_ABSY:
+            operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
+            break;
+          case AD_ZP:
+            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
+            break;
+          case AD_ZPX:
+            operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
+            break;
+          case AD_XIND:
+            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
+            break;
+          case AD_INDY:
+            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
+            break;
+          default:
+            printf("Illegal addressing mode in EOR\n");
+            break;
+        }
+        printf("dbg operand = #$%02X\n", operand);
+        a ^= operand;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x09:
+      case 0x0d:
+      case 0x1d:
+      case 0x19:
+      case 0x05:
+      case 0x15:
+      case 0x01:
+      case 0x11: //ORA
+        //todo: extra cycles on page cross for post indexed modes
+        switch (instr_set[opcode].mode) {
+          case AD_IMM:
+            operand = fetch_mem_byte(pc + 1);
+            break;
+          case AD_ABS:
+            operand = fetch_mem_byte(fetch_addr(pc + 1));
+            break;
+          case AD_ABSX:
+            operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
+            break;
+          case AD_ABSY:
+            operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
+            break;
+          case AD_ZP:
+            operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
+            break;
+          case AD_ZPX:
+            operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
+            break;
+          case AD_XIND:
+            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
+            break;
+          case AD_INDY:
+            operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
+            break;
+          default:
+            printf("Illegal addressing mode in ORA\n");
+            break;
+        }
+        printf("dbg operand = #$%02X\n", operand);
+        a |= operand;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
+        pc += instr_set[opcode].bytes;
+        break;
       default:
         pc += instr_set[opcode].bytes;
         break;
     }
-
     return 0;
   }
 };
