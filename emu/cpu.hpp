@@ -558,22 +558,22 @@ public:
       case 0x95:
       case 0x81:
       case 0x91: //STA
-        memory[store_addr] = a;
+        store_mem_byte(store_addr, a);
         pc += instr_set[opcode].bytes;
         break;
       case 0x8e:
       case 0x86:
       case 0x96: //STX
-        memory[store_addr] = x;
+        store_mem_byte(store_addr, x);
         pc += instr_set[opcode].bytes;
         break;
       case 0x8c:
       case 0x84:
       case 0x94: //STY
-        memory[store_addr] = y;
+        store_mem_byte(store_addr, y);
         pc += instr_set[opcode].bytes;
         break;
-      case 0xa: //TAX
+      case 0xaa: //TAX
         x = a;
         p = (x == 0) ? p | F_Z : p & ~F_Z;
         p = (x & F_N) ? p | F_N : p & ~F_N;
@@ -605,6 +605,92 @@ public:
         a = y;
         p = (a == 0) ? p | F_Z : p & ~F_Z;
         p = (a & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x0a:
+      case 0x0e:
+      case 0x1e:
+      case 0x06:
+      case 0x16: //ASL
+        if (instr_set[opcode].mode == AD_ACC) {
+          p = (a & F_N) ? p | F_C : p & ~F_C;
+          a = a << 1;
+          p = (a == 0) ? p | F_Z : p & ~F_Z;
+          p = (a & F_N) ? p | F_N : p & ~F_N;
+          pc += instr_set[opcode].bytes;
+          break;
+        }
+        p = (operand & F_N) ? p | F_C : p & ~F_C;
+        operand = operand << 1;
+        p = (operand == 0) ? p | F_Z : p & ~F_Z;
+        p = (operand & F_N) ? p | F_N : p & ~F_N;
+        store_mem_byte(store_addr, operand);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x4a:
+      case 0x4e:
+      case 0x5e:
+      case 0x46:
+      case 0x56: //LSR
+        if (instr_set[opcode].mode == AD_ACC) {
+          p = (a & F_C) ? p | F_C : p & ~F_C;
+          a = a >> 1;
+          p = (a == 0) ? p | F_Z : p & ~F_Z;
+          p = p & ~F_N;
+          pc += instr_set[opcode].bytes;
+          break;
+        }
+        p = (operand & F_C) ? p | F_C : p & ~F_C;
+        operand = operand >> 1;
+        p = (operand == 0) ? p | F_Z : p & ~F_Z;
+        p = p & ~F_N;
+        store_mem_byte(store_addr, operand);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x2a:
+      case 0x2e:
+      case 0x3e:
+      case 0x26:
+      case 0x36: //ROL
+        tmp = p;
+        if (instr_set[opcode].mode == AD_ACC) {
+          p = (a & F_N) ? p | F_C : p & ~F_C;
+          a = a << 1;
+          a |= tmp & F_C;
+          p = (a == 0) ? p | F_Z : p & ~F_Z;
+          p = (a & F_N) ? p | F_N : p & ~F_N;
+          pc += instr_set[opcode].bytes;
+          break;
+        }
+        p = (operand & F_N) ? p | F_C : p & ~F_C;
+        operand = operand << 1;
+        operand |= tmp & F_C;
+        p = (operand == 0) ? p | F_Z : p & ~F_Z;
+        p = (operand & F_N) ? p | F_N : p & ~F_N;
+        store_mem_byte(store_addr, operand);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x6a:
+      case 0x6e:
+      case 0x7e:
+      case 0x66:
+      case 0x76: //ROR
+        tmp = p;
+        if (instr_set[opcode].mode == AD_ACC) {
+          p = (a & F_C) ? p | F_C : p & ~F_C;
+          a = a >> 1;
+          a |= (tmp & F_C) << 7;
+          p = (a == 0) ? p | F_Z : p & ~F_Z;
+          p = (tmp & F_C) ? p | F_N : p & ~F_N;
+          pc += instr_set[opcode].bytes;
+          break;
+        }
+        p = (operand & F_C) ? p | F_C : p & ~F_C;
+        operand = operand >> 1;
+        operand |= (tmp & F_C) << 7;
+        p = (operand == 0) ? p | F_Z : p & ~F_Z;
+        p = (tmp & F_C) ? p | F_N : p & ~F_N;
+        store_mem_byte(store_addr, operand);
         pc += instr_set[opcode].bytes;
         break;
       default:
