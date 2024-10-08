@@ -242,7 +242,7 @@ public:
   int eval() {
     //fetch
     uint8_t opcode = memory[pc];
-    disas(opcode);
+    //disas(opcode);
     cycles += instr_set[opcode].cycles;
 
     uint8_t operand, tmp;
@@ -693,7 +693,71 @@ public:
         store_mem_byte(store_addr, operand);
         pc += instr_set[opcode].bytes;
         break;
+      case 0x69:
+      case 0x6d:
+      case 0x7d:
+      case 0x79:
+      case 0x65:
+      case 0x75:
+      case 0x61:
+      case 0x71: //ADC
+        tmp = a;
+        a = a + operand + ((p & F_C) ? 1 : 0);
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
+        p = (tmp + operand > 255) ? p | F_C : p & ~F_C; //todo: decimal mode carry
+        //todo: overflow
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xc9:
+      case 0xcd:
+      case 0xdd:
+      case 0xd9:
+      case 0xc5:
+      case 0xd5:
+      case 0xc1:
+      case 0xd1: //CMP
+        tmp = a - operand;
+        p = (a == operand) ? p | F_Z : p & ~F_Z;
+        p = (tmp & F_N) ? p | F_N : p & ~F_N;
+        p = (operand <= a) ? p | F_C : p & ~F_C;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xe0:
+      case 0xec:
+      case 0xe4: //CPX
+        tmp = x - operand;
+        p = (x == operand) ? p | F_Z : p & ~F_Z;
+        p = (tmp & F_N) ? p | F_N : p & ~F_N;
+        p = (operand <= x) ? p | F_C : p & ~F_C;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xc0:
+      case 0xcc:
+      case 0xc4: //CPY
+        tmp = y - operand;
+        p = (y == operand) ? p | F_Z : p & ~F_Z;
+        p = (tmp & F_N) ? p | F_N : p & ~F_N;
+        p = (operand <= y) ? p | F_C : p & ~F_C;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xe9:
+      case 0xed:
+      case 0xfd:
+      case 0xf9:
+      case 0xe5:
+      case 0xf5:
+      case 0xe1:
+      case 0xf1: //SBC
+        a = a - operand - ((p & F_C) ? 0 : 1);
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        p = ((int8_t)a >= 0) ? p | F_C : p & ~F_C;
+        //todo: overflow
+        pc += instr_set[opcode].bytes;
+        break;
       default:
+        printf("Unimplemented %s\n", instr_set[opcode].mnemonic);
         pc += instr_set[opcode].bytes;
         break;
     }
