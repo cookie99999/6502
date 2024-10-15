@@ -756,8 +756,52 @@ public:
         //todo: overflow
         pc += instr_set[opcode].bytes;
         break;
+      case 0xce:
+      case 0xde:
+      case 0xc6:
+      case 0xd6: //DEC
+        tmp = operand - 1;
+        p = (tmp == 0) ? p | F_Z : p & ~F_Z;
+        p = (tmp & F_N) ? p | F_N : p & ~F_N;
+        store_mem_byte(store_addr, tmp);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xca: //DEX
+        x--;
+        p = (x == 0) ? p | F_Z : p & ~F_Z;
+        p = (x & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0x88: //DEY
+        y--;
+        p = (y == 0) ? p | F_Z : p & ~F_Z;
+        p = (y & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xee:
+      case 0xfe:
+      case 0xe6:
+      case 0xf6: //INC
+        tmp = operand + 1;
+        p = (tmp == 0) ? p | F_Z : p & ~F_Z;
+        p = (tmp & F_N) ? p | F_N : p & ~F_N;
+        store_mem_byte(store_addr, tmp);
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xe8: //INX
+        x++;
+        p = (x == 0) ? p | F_Z : p & ~F_Z;
+        p = (x & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
+      case 0xc8: //INY
+        y++;
+        p = (y == 0) ? p | F_Z : p & ~F_Z;
+        p = (y & F_N) ? p | F_N : p & ~F_N;
+        pc += instr_set[opcode].bytes;
+        break;
       default:
-        printf("Unimplemented %s\n", instr_set[opcode].mnemonic);
+        //printf("Unimplemented %s\n", instr_set[opcode].mnemonic);
         pc += instr_set[opcode].bytes;
         break;
     }
