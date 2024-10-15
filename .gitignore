@@ -8,4 +8,5 @@
 *.jed
 *.lst
 *.nes
+*.log
 emu6502
