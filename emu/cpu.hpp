@@ -176,7 +176,7 @@ public:
   }
 
   void reset(bool cold) {
-    cycles = 0;
+    cycles = 7; //7 cycles to start up
     pc = (uint16_t)(memory[0xfffd]) << 8 | (uint16_t)(memory[0xfffc]);
     sp -= 3;
     if (cold) {
@@ -228,7 +228,7 @@ public:
         printf("($%04X), Y", memory[pc + 1]);
         break;
       case AD_REL:
-        printf("$%04X", pc + (int8_t)memory[pc + 1]);
+        printf("$%04X", pc + (int8_t)memory[pc + 1] + instr_set[opcode].bytes);
         break;
       case AD_ACC:
         printf("A");
@@ -239,13 +239,69 @@ public:
     printf("\n");
   }
 
+  void disas2(uint8_t opcode) {
+    printf("%04X %02X", pc, opcode);
+    if (instr_set[opcode].bytes > 1) {
+      printf(" %02X", memory[pc + 1]);
+    }
+    if (instr_set[opcode].bytes > 2) {
+      printf(" %02X", memory[pc + 2]);
+    }
+    printf(" %s", instr_set[opcode].mnemonic);
+
+    switch (instr_set[opcode].mode) {
+      case AD_IMM:
+        printf(" #$%02X", memory[pc + 1]);
+        break;
+      case AD_ABS:
+        printf(" $%04X", fetch_addr(pc + 1));
+        break;
+      case AD_ZP:
+        printf(" $%02X = %02X", memory[pc + 1], fetch_mem_byte(memory[pc + 1]));
+        break;
+      case AD_ABSX:
+        printf(" $%04X,X @ %04X = %02X", fetch_addr(pc + 1), fetch_addr(pc + 1) + x, fetch_mem_byte(fetch_addr(pc + 1) + x));
+        break;
+      case AD_ABSY:
+        printf(" $%04X,Y @ %04X = %02X", fetch_addr(pc + 1), fetch_addr(pc + 1) + y, fetch_mem_byte(fetch_addr(pc + 1) + y));
+        break;
+      case AD_ZPX:
+        printf(" $%02X,X @ %02X = %02X", memory[pc + 1], memory[pc + 1] + x, fetch_mem_byte(memory[pc + 1] + x));
+        break;
+      case AD_ZPY:
+        printf(" $%02X,Y @ %02X = %02X", memory[pc + 1], memory[pc + 1] + y, fetch_mem_byte(memory[pc + 1] + y));
+        break;
+      case AD_IND:
+        printf(" ($%04X) = %04X", fetch_addr(pc + 1), fetch_addr(fetch_addr(pc + 1)));
+        break;
+      case AD_XIND:
+        printf(" ($%02X,X) @ %02X = %04X = %02X", memory[pc + 1], memory[pc + 1] + x, fetch_addr(memory[pc + 1] + x), fetch_mem_byte(fetch_addr(memory[pc + 1] + x)));
+        break;
+      case AD_INDY:
+        printf(" ($%02X),Y = %04X @ %04X = %02X", memory[pc + 1], fetch_addr(memory[pc + 1]), fetch_addr(memory[pc + 1]) + y, fetch_mem_byte(fetch_addr(memory[pc + 1]) + y));
+        break;
+      case AD_REL:
+        printf(" $%04X", pc + (int8_t)memory[pc + 1] + instr_set[opcode].bytes);
+        break;
+      case AD_ACC:
+        //printf("A");
+        break;
+      case AD_IMPL:
+        break;
+    }
+    printf(" ");
+
+    printf("A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%d\n", a, x, y, p, sp, cycles);
+  }
+
   int eval() {
     //fetch
     uint8_t opcode = memory[pc];
-    //disas(opcode);
+    disas2(opcode);
     cycles += instr_set[opcode].cycles;
 
     uint8_t operand, tmp;
+    uint16_t tmpw;
     uint16_t store_addr;
     //todo: extra cycles on page cross for post indexed modes
     //TODO IMPORTANT zero page wrap just put a modulo dumb shit
@@ -272,16 +328,18 @@ public:
         operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
         break;
       case AD_ZPX:
-        operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + x);
+        operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + x) % 0xff);
         break;
       case AD_ZPY:
-        operand = fetch_mem_byte(fetch_mem_byte(pc + 1) + y);
+        operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + y) % 0xff);
         break;
       case AD_XIND:
-        operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1) + x));
+        operand = fetch_mem_byte(fetch_addr((fetch_mem_byte(pc + 1) + x) % 0xff));
         break;
       case AD_INDY:
         operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
+        break;
+      case AD_IND: //only used by JMP ($nnnn)
         break;
       default:
         printf("Illegal addressing mode\n");
@@ -328,7 +386,18 @@ public:
         break;
       case 0x4c:
       case 0x6c: //JMP
-        pc = instr_set[opcode].mode == AD_ABS ? fetch_addr(pc + 1) : fetch_addr(fetch_addr(pc + 1));
+        //on NMOS 6502 incl 2a03, the indirect addr hi byte doesnt increment on page cross
+        //eg jmp ($02ff) gets hi from 0200 and lo from 02ff
+        if (instr_set[opcode].mode == AD_ABS) {
+          pc = fetch_addr(pc + 1);
+          break;
+        }
+        tmpw = fetch_addr(pc + 1);
+        if ((tmpw & 0x00ff) == 0x00ff) {
+          pc = (uint16_t)fetch_mem_byte(tmpw) | (uint16_t)(fetch_mem_byte(tmpw - 0x00ff)) << 8;
+        } else {
+          pc = fetch_addr(tmpw);
+        }
         break;
       case 0x20: //JSR
         push_addr(pc + 2);
@@ -343,75 +412,67 @@ public:
         pc++;
         break;
       case 0x90: //BCC
+        pc += instr_set[opcode].bytes;
         if (!(p & F_C)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0xB0: //BCS
+        pc += instr_set[opcode].bytes;
         if ((p & F_C)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0xF0: //BEQ
+        pc += instr_set[opcode].bytes;
         if ((p & F_Z)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0x30: //BMI
+        pc += instr_set[opcode].bytes;
         if ((p & F_N)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0xD0: //BNE
+        pc += instr_set[opcode].bytes;
         if (!(p & F_Z)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0x10: //BPL
+        pc += instr_set[opcode].bytes;
         if (!(p & F_N)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0x50: //BVC
+        pc += instr_set[opcode].bytes;
         if (!(p & F_V)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0x70: //BVS
+        pc += instr_set[opcode].bytes;
         if ((p & F_V)) {
           cycles += 1;
           pc += (int8_t)operand;
           //todo: add another cycle if page boundary is crossed
-        } else {
-          pc += instr_set[opcode].bytes;
         }
         break;
       case 0x18: //CLC
@@ -447,19 +508,19 @@ public:
         pc += instr_set[opcode].bytes;
         break;
       case 0x08: //PHP
-        push_byte(p);
+        push_byte(p | F_5 | F_B);
         pc += instr_set[opcode].bytes;
         break;
       case 0x68: //PLA
         a = pop_byte();
-        if (a & 0b10000000)
-          p |= F_N;
-        if (a == 0)
-          p |= F_Z;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
         pc += instr_set[opcode].bytes;
         break;
       case 0x28: //PLP
         p = pop_byte();
+        p |= F_5; //this bit is always set
+        p &= ~F_B; //this bit is only set when pushed, by hardware or by BRK
         pc += instr_set[opcode].bytes;
         break;
       case 0x29:
@@ -470,16 +531,9 @@ public:
       case 0x35:
       case 0x21:
       case 0x31: //AND
-        printf("dbg operand = #$%02X\n", operand);
         a &= operand;
-        if (a & 0b10000000)
-          p |= F_N;
-        else
-          p &= ~F_N;
-        if (a == 0)
-          p |= F_Z;
-        else
-          p &= ~F_Z;
+        p = (a & F_N) ? p | F_N : p & ~F_N;
+        p = (a == 0) ? p | F_Z : p & ~F_Z;
         pc += instr_set[opcode].bytes;
         break;
       case 0x2c:
@@ -498,7 +552,6 @@ public:
       case 0x55:
       case 0x41:
       case 0x51: //EOR
-        printf("dbg operand = #$%02X\n", operand);
         a ^= operand;
         p = (a & F_N) ? p | F_N : p & ~F_N;
         p = (a == 0) ? p | F_Z : p & ~F_Z;
@@ -512,7 +565,6 @@ public:
       case 0x15:
       case 0x01:
       case 0x11: //ORA
-        printf("dbg operand = #$%02X\n", operand);
         a |= operand;
         p = (a & F_N) ? p | F_N : p & ~F_N;
         p = (a == 0) ? p | F_Z : p & ~F_Z;
@@ -704,8 +756,8 @@ public:
         tmp = a;
         a = a + operand + ((p & F_C) ? 1 : 0);
         p = (a == 0) ? p | F_Z : p & ~F_Z;
-        p = (tmp + operand > 255) ? p | F_C : p & ~F_C; //todo: decimal mode carry
-        //todo: overflow
+        p = (tmp + operand + ((p & F_C) ? 1 : 0) > 255) ? p | F_C : p & ~F_C; //todo: decimal mode carry
+        p = (((int8_t)a + (int8_t)operand + (int8_t)((p & F_C) ? 1 : 0)) > 0xff) ? p | F_V : p & ~F_V;
         p = (a & F_N) ? p | F_N : p & ~F_N;
         pc += instr_set[opcode].bytes;
         break;
