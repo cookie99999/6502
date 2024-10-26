@@ -757,7 +757,7 @@ public:
         a = a + operand + ((p & F_C) ? 1 : 0);
         p = (a == 0) ? p | F_Z : p & ~F_Z;
         p = (tmp + operand + ((p & F_C) ? 1 : 0) > 255) ? p | F_C : p & ~F_C; //todo: decimal mode carry
-        p = (((int8_t)a + (int8_t)operand + (int8_t)((p & F_C) ? 1 : 0)) > 0xff) ? p | F_V : p & ~F_V;
+        p = ((tmp & 0x80) != (a & 0x80)) ? p | F_V : p & ~F_V;
         p = (a & F_N) ? p | F_N : p & ~F_N;
         pc += instr_set[opcode].bytes;
         break;
