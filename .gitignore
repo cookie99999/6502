@@ -9,4 +9,5 @@
 *.lst
 *.nes
 *.log
+*.sym
 emu6502
