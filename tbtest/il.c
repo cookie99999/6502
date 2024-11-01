@@ -5,7 +5,7 @@
 
 char lbuf[72];
 uint8_t cp = 0;
-char pgm[72 * 256] = "Success!\"";
+char pgm[72 * 256] = "100 Success\n\0200 poo\n\0";
 uint16_t pgp = 0;
 int16_t vars[26];
 uint16_t ilpc = 0;
@@ -197,8 +197,50 @@ void getln() {
   printf("you entered %s", lbuf);
 }
 
+/* pgm layout
+   line number (ascii saves time potentially but putting it into a byte saves some space)
+   line text ending with \n
+   zero terminator
+   72 bytes max line
+   256 lines max pgm
+ */
+
 void insrt() {
-  printf("implement insrt please\n");
+  //get line number from lbuf
+  //see if line already exists in pgm
+  //delete it if so
+  //insert
+
+  char *end;
+  int l = strtol(lbuf, &end, 10);
+  if (end == lbuf) {
+    //err, entered line has no number (this should run it in immediate actually i think)
+    printf("insrt oops\n");
+    return;
+  }
+  printf("the line entered is %d\n", l);
+
+  int i = 0;
+  while (1) {
+    int l2 = strtol(pgm + i, &end, 10);
+    if (end == pgm + i) {
+      //err, a stored line has no number
+      printf("insrt oops 2\n");
+    }
+    if (l2 == l) {
+      printf("Matching line found\n");
+      //delete and move
+      break;
+    } else {
+      while (pgm[i++] != '\0') {
+	if (i >= sizeof pgm || pgm[i + 1] > '9' || pgm[i + 1] < '0') {
+	  printf("no matching line found\n");
+	  //insert in appropriate space
+	  return;
+	}
+      }
+    }
+  }
 }
 
 void call(uint16_t addr) {
@@ -367,7 +409,7 @@ enum il_instructions {
 
 //uint8_t ilpgm[] = {IL_INIT, IL_LIT, 0x03, 0x00, IL_INNUM, IL_INNUM, IL_DIV, IL_STORE,
 //		   IL_LIT, 0x03, 0x00, IL_IND, IL_PRN};
-uint8_t ilpgm[] = {IL_GETLINE};
+uint8_t ilpgm[] = {IL_GETLINE, IL_INSRT};
 
 void step_il() {
   uint8_t instr = ilpgm[ilpc];
@@ -507,7 +549,7 @@ void step_il() {
 }
 
 void main() {
-  while (ilpc <= 0) {
+  while (ilpc <= 1) {
     printf("ilpgm %02x @ ilpc %d\n", ilpgm[ilpc], ilpc);
     step_il();
     dump_sbr(); 
