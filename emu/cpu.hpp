@@ -255,6 +255,9 @@ public:
         break;
       case AD_ABS:
         printf(" $%04X", fetch_addr(pc + 1));
+        if (instr_set[opcode].mnemonic == "STX" || instr_set[opcode].mnemonic == "STY" || instr_set[opcode].mnemonic == "STA" || instr_set[opcode].mnemonic == "LDX" || instr_set[opcode].mnemonic == "LDY" || instr_set[opcode].mnemonic == "LDA") {
+          printf(" = %02X", fetch_mem_byte(fetch_addr(pc + 1)));
+        }
         break;
       case AD_ZP:
         printf(" $%02X = %02X", memory[pc + 1], fetch_mem_byte(memory[pc + 1]));
@@ -284,7 +287,7 @@ public:
         printf(" $%04X", pc + (int8_t)memory[pc + 1] + instr_set[opcode].bytes);
         break;
       case AD_ACC:
-        //printf("A");
+        printf(" A");
         break;
       case AD_IMPL:
         break;
@@ -328,7 +331,7 @@ public:
         operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
         break;
       case AD_ZPX:
-        operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + x) % 0xff);
+        operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + x) % 0xff); //fix
         break;
       case AD_ZPY:
         operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + y) % 0xff);
@@ -404,7 +407,8 @@ public:
         pc = fetch_addr(pc + 1);
         break;
       case 0x40: //RTI
-        p = pop_byte();
+        p = pop_byte(); //check bit 5 behavior
+        p |= F_5;
         pc = pop_addr();
         break;
       case 0x60: //RTS
@@ -801,11 +805,13 @@ public:
       case 0xf5:
       case 0xe1:
       case 0xf1: //SBC
-        a = a - operand - ((p & F_C) ? 0 : 1);
+        operand ^= 0xff;
+        tmp = a;
+        a = a + operand + ((p & F_C) ? 1 : 0);
         p = (a == 0) ? p | F_Z : p & ~F_Z;
+        p = (tmp + operand + ((p & F_C) ? 1 : 0) > 255) ? p | F_C : p & ~F_C; //todo: decimal mode carry
+        p = (~(tmp ^ operand) & (tmp ^ a) & 0x80) ? p | F_V : p & ~F_V;
         p = (a & F_N) ? p | F_N : p & ~F_N;
-        p = ((int8_t)a >= 0) ? p | F_C : p & ~F_C;
-        //todo: overflow
         pc += instr_set[opcode].bytes;
         break;
       case 0xce:
