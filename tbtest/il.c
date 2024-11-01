@@ -5,7 +5,7 @@
 
 char lbuf[72];
 uint8_t cp = 0;
-char pgm[72 * 256];
+char pgm[72 * 256] = "Success!\"";
 uint16_t pgp = 0;
 int16_t vars[26];
 uint16_t ilpc = 0;
@@ -31,13 +31,12 @@ void dump_ae() {
 void dump_sbr() {
   printf("SBRSTK:\n");
   for (int i = 0; i <= sbrsp; i++) {
-    printf("%d ", sbrstk[i]);
+    printf("%d", sbrstk[i]);
     if (i == sbrsp) {
-      printf("<-- SBRSP = %d\n");
+      printf("<-- SBRSP = %d\n", sbrsp);
       break;
     }
-    if (i % 3 == 0)
-      printf("\n");
+    printf("\n");
   }
 }
 
@@ -139,7 +138,7 @@ void prs() {
 void tstv(int8_t offset) {
   if (pgm[pgp] >= 'A' && pgm[pgp] <= 'Z') {
     aestk[aesp++] = pgm[pgp] - 'A';
-    ilpc++;
+    ilpc += 2;
   } else {
     ilpc += offset;
   }
@@ -156,23 +155,54 @@ void tstn(int8_t offset) {
     }
   }
 
-  aestk[aesp++] = atoi(&pgm[pgp]);
-  ilpc++;
+  aestk[aesp++] = strtol(&pgm[pgp], NULL, 10);
+  pgp = i;
+  ilpc += 2;
 }
 
 void tst(int8_t offset, char *string) {
   int i = 0;
+  while (pgm[pgp] == ' ')
+    pgp++;
   while (string[i] != '\0') {
     if (string[i++] != pgm[pgp++]) {
       ilpc += offset;
+      pgp -= i;
       return;
     }
   }
-  ilpc++;
+  ilpc += 2 + strlen(string) + 1; //1 for null terminator
+}
+
+void tstl(int8_t offset) {
+  printf("implement tstl please\n");
+}
+
+void err(uint16_t addr) {
+  printf("ERR @ %d\n", curline);
+  ilpc = addr;
+}
+
+void xinit() {
+  printf("implement xinit please\n");
+}
+
+void spc() {
+  printf(" ");
+}
+
+void getln() {
+  printf(":");
+  fgets(lbuf, sizeof lbuf, stdin);
+  printf("you entered %s", lbuf);
+}
+
+void insrt() {
+  printf("implement insrt please\n");
 }
 
 void call(uint16_t addr) {
-  sbrstk[sbrsp++] = ilpc;
+  sbrstk[sbrsp++] = ilpc + 3;
   ilpc = addr;
 }
 
@@ -184,12 +214,15 @@ void done(uint16_t addr) {
   while(pgm[pgp++] == ' ')
     ;
   if (pgm[pgp] != '\n')
-    ; //error
-  ilpc = addr;
+    err(addr);
 }
 
 void jmp(uint16_t addr) {
   ilpc = addr;
+}
+
+void fin(uint16_t addr) {
+  jmp(addr);
 }
 
 void sav() {
@@ -209,14 +242,21 @@ void xfer() {
   //else err
 }
 
-void nxt() {
+void nxt(uint16_t addr) {
+  printf("please implement nxt\n");
+  if (curline == 0) {
+    ilpc = addr;
+    return;
+  } else {
+    //select next line and interpret
+  }
 }
 
 enum comparisons {
   CMP_EQ, CMP_GT, CMP_LT, CMP_NE, CMP_GTE, CMP_LTE
 };
 
-void cmpr() {
+void cmpr(uint16_t addr) {
   int failed = 0;
   switch (aestk[aesp - 2]) {
   case CMP_EQ:
@@ -246,19 +286,21 @@ void cmpr() {
   drop_ae();
   drop_ae();
   if (failed) {
-    nxt();
+    nxt(addr);
     return;
   }
+  ilpc += 2;
 }
 
 void innum() {
   int16_t buf;
-  int stat;
+  char *stat;
+  char *end;
   do {
     printf("? ");
-    fflush(stdin);
-    stat = scanf("%hd", &buf);
-  } while (stat != 1 || stat == EOF);
+    stat = fgets(lbuf, sizeof lbuf, stdin);
+    buf = strtol(lbuf, &end, 10);
+  } while (end == lbuf || stat == NULL);
   aestk[aesp++] = buf;
 }
 
@@ -323,14 +365,151 @@ enum il_instructions {
   IL_DIV, IL_STORE, IL_IND, IL_LST, IL_GETLINE, IL_INSRT
 };
 
+//uint8_t ilpgm[] = {IL_INIT, IL_LIT, 0x03, 0x00, IL_INNUM, IL_INNUM, IL_DIV, IL_STORE,
+//		   IL_LIT, 0x03, 0x00, IL_IND, IL_PRN};
+uint8_t ilpgm[] = {IL_GETLINE};
+
+void step_il() {
+  uint8_t instr = ilpgm[ilpc];
+
+  if (instr & 0x80) { //ctrl flow
+    if (instr & 0x40) { //relative
+      int8_t offset = ilpgm[ilpc + 1];
+      switch (instr) {
+      case IL_TST:
+	tst(offset, &ilpgm[ilpc + 2]);
+	break;
+      case IL_TSTV:
+	tstv(offset);
+	break;
+      case IL_TSTN:
+	tstn(offset);
+	break;
+      case IL_TSTL:
+	tstl(offset);
+	break;
+      default:
+	printf("ctrl flow rel oops\n");
+	ilpc++;
+	break;
+      }
+      return;
+    } else { //absolute
+      uint16_t addr = (uint16_t)((ilpgm[ilpc + 1]) | (ilpgm[ilpc + 2] << 8));
+      switch (instr) {
+      case IL_JMP:
+	jmp(addr);
+	break;
+      case IL_CALL:
+	call(addr);
+	break;
+      case IL_RTN:
+	rtn();
+	break;
+      case IL_FIN:
+	jmp(addr); //design note says fin just jumps to line collect routine
+	break;
+      case IL_ERR:
+	err(addr);
+	break;
+      case IL_INIT:
+	init();
+	ilpc++;
+	break;
+      case IL_NXT:
+	nxt(addr);
+	break;
+      case IL_DONE:
+	done(addr);
+	break;
+      case IL_XINIT:
+	xinit();
+	ilpc++;
+	break;
+      default:
+	printf("ctrl flow abs oops\n");
+	ilpc++;
+	break;
+      }
+    }
+  } else { //stack/io/basic line
+    int16_t n;
+    uint16_t addr = (uint16_t)((ilpgm[ilpc + 1]) | (ilpgm[ilpc + 2] << 8));
+    switch (instr) {
+    case IL_PRS:
+      prs();
+      break;
+    case IL_PRN:
+      prn();
+      break;
+    case IL_SPC:
+      spc();
+      break;
+    case IL_NLINE:
+      nline();
+      break;
+    case IL_XFER:
+      xfer();
+      break;
+    case IL_SAV:
+      sav();
+      break;
+    case IL_RSTR:
+      rstr();
+      break;
+    case IL_CMPR:
+      cmpr(addr);
+      break;
+    case IL_INNUM:
+      innum();
+      break;
+    case IL_LIT:
+      n = (int16_t)((ilpgm[ilpc + 1]) | (ilpgm[ilpc + 2] << 8));
+      lit(n);
+      ilpc += 2;
+      break;
+    case IL_ADD:
+      add();
+      break;
+    case IL_SUB:
+      sub();
+      break;
+    case IL_NEG:
+      neg();
+      break;
+    case IL_MUL:
+      mul();
+      break;
+    case IL_DIV:
+      divd();
+      break;
+    case IL_STORE:
+      store();
+      break;
+    case IL_IND:
+      ind();
+      break;
+    case IL_LST:
+      lst();
+      break;
+    case IL_GETLINE:
+      getln();
+      break;
+    case IL_INSRT:
+      insrt();
+      break;
+    default:
+      printf("stack/io/basic line oops\n");
+      break;
+    }
+    ilpc++;
+  }
+}
+
 void main() {
-  init();
-  lit(3);
-  innum();
-  innum();
-  divd();
-  store();
-  lit(3);
-  ind();
-  prn();
+  while (ilpc <= 0) {
+    printf("ilpgm %02x @ ilpc %d\n", ilpgm[ilpc], ilpc);
+    step_il();
+    dump_sbr(); 
+  }
 }
