@@ -5,7 +5,7 @@
 
 char lbuf[72];
 uint8_t cp = 0;
-char pgm[72 * 256] = "100 Success\n\0200 poo\n\0";
+char pgm[72 * 256] = "100 Success\n200 poo\n";
 uint16_t pgp = 0;
 int16_t vars[26];
 uint16_t ilpc = 0;
@@ -205,6 +205,31 @@ void getln() {
    256 lines max pgm
  */
 
+int findline(int l) {
+  //given line number n return the index into pgm where that line starts
+  int i = 0;
+  char *end;
+  for (;;) {
+    int l2 = strtol(pgm + i, &end, 10);
+    if (end == pgm + i) {
+      //err, stored line has no number
+      printf("findline oops: no line num in stored line at index %d\n", i);
+    }
+    if (l2 == l) {
+      //match
+      return i;
+    } //else no match
+    while (pgm[i++] != '\n') {
+      if (i >= sizeof pgm) {
+	//end of pgm with no match
+	return -1;
+      }
+    } //continue to next line
+    if (pgm[i] == '\0') //only needed because pgm can end with \n in which case it will try to keep going
+      return -1;
+  }
+}
+
 void insrt() {
   //get line number from lbuf
   //see if line already exists in pgm
@@ -215,31 +240,16 @@ void insrt() {
   int l = strtol(lbuf, &end, 10);
   if (end == lbuf) {
     //err, entered line has no number (this should run it in immediate actually i think)
-    printf("insrt oops\n");
+    printf("no num\n");
     return;
   }
   printf("the line entered is %d\n", l);
-
-  int i = 0;
-  while (1) {
-    int l2 = strtol(pgm + i, &end, 10);
-    if (end == pgm + i) {
-      //err, a stored line has no number
-      printf("insrt oops 2\n");
-    }
-    if (l2 == l) {
-      printf("Matching line found\n");
-      //delete and move
-      break;
-    } else {
-      while (pgm[i++] != '\0') {
-	if (i >= sizeof pgm || pgm[i + 1] > '9' || pgm[i + 1] < '0') {
-	  printf("no matching line found\n");
-	  //insert in appropriate space
-	  return;
-	}
-      }
-    }
+  int il = findline(l);
+  if (il < 0) {
+    printf("no matching line found\n");
+    //insert it after the next lowest line
+  } else {//we must delete existing line and then insert
+    printf("line already exists, must delete\n");
   }
 }
 
@@ -550,8 +560,7 @@ void step_il() {
 
 void main() {
   while (ilpc <= 1) {
-    printf("ilpgm %02x @ ilpc %d\n", ilpgm[ilpc], ilpc);
     step_il();
-    dump_sbr(); 
   }
+  printf("index of line 100 = %d\nindex of line 105 = %d\n", findline(100), findline(105));
 }
