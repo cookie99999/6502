@@ -5,7 +5,7 @@
 
 char lbuf[72];
 uint8_t cp = 0;
-char pgm[72 * 256] = "100 Success\n200 poo\n";
+char pgm[72 * 256] = "100 Success\n200 poo\n300 ababa\n";
 uint16_t pgp = 0;
 int16_t vars[26];
 uint16_t ilpc = 0;
@@ -230,6 +230,16 @@ int findline(int l) {
   }
 }
 
+int delline(int l) { //returns size of line before deletion
+  int i = findline(l);
+  int i2 = 0;
+  while (pgm[i + i2] != '\n')
+    i2++;
+  //i2 is now line size
+  memset(&pgm[i], ' ', i2);
+  return i2;
+}
+
 void insrt() {
   //get line number from lbuf
   //see if line already exists in pgm
@@ -244,12 +254,18 @@ void insrt() {
     return;
   }
   printf("the line entered is %d\n", l);
+  int lbufsz = 0;
+  while (lbuf[lbufsz] != '\n')
+    lbufsz++;
   int il = findline(l);
   if (il < 0) {
     printf("no matching line found\n");
     //insert it after the next lowest line
   } else {//we must delete existing line and then insert
     printf("line already exists, must delete\n");
+    int sz = delline(l);
+    if (lbufsz > sz)
+      printf("new line bigger than old line, must shift pgm\n");
   }
 }
 
@@ -562,5 +578,4 @@ void main() {
   while (ilpc <= 1) {
     step_il();
   }
-  printf("index of line 100 = %d\nindex of line 105 = %d\n", findline(100), findline(105));
 }
