@@ -5,7 +5,7 @@
 
 char lbuf[72];
 uint8_t cp = 0;
-char pgm[72 * 256] = "100 Success\n200 poo\n300 ababa\n";
+char pgm[72 * 256] = "100 Success\n200 poo\n255 ababa\n";
 uint16_t pgp = 0;
 int16_t vars[26];
 uint16_t ilpc = 0;
@@ -194,13 +194,11 @@ void spc() {
 void getln() {
   printf(":");
   fgets(lbuf, sizeof lbuf, stdin);
-  printf("you entered %s", lbuf);
 }
 
 /* pgm layout
    line number (ascii saves time potentially but putting it into a byte saves some space)
    line text ending with \n
-   zero terminator
    72 bytes max line
    256 lines max pgm
  */
@@ -258,9 +256,17 @@ void insrt() {
   while (lbuf[lbufsz] != '\n')
     lbufsz++;
   int il = findline(l);
+  int lprev = l - 1;
   if (il < 0) {
     printf("no matching line found\n");
     //insert it after the next lowest line
+    if (lprev == 0) { //trying to insert line 1
+      //do it
+    }
+    while (findline(lprev) < 0)
+      lprev--;
+    printf("next lowest line is %d\n", lprev);
+    //lprev = previous line, now seek to end, figure out how far you need to shift, and do it
   } else {//we must delete existing line and then insert
     printf("line already exists, must delete\n");
     int sz = delline(l);
