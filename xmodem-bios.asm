@@ -150,10 +150,72 @@ do_poke: ; starts with x pointing at the :
   rts
 
 do_xmodem:
-  rts ; TODO
+  lda #<user_start
+  sta workwl
+  lda #>user_start
+  sta workwh
+  lda #NAK
+  jsr putchar
+  jsr getchar_timeout
+  cmp #SOH
+  bne do_xmodem
+  
+get_block:
+  jsr getchar ; block number
+  sta workb
+  jsr getchar ; negated block number
+  sta workb2
+  ldy #$00
+@loop:
+  jsr getchar
+  sta (workw), y
+  iny
+  cpy #$80 ; 128 data bytes per packet
+  bne @loop
+
+  jsr getchar ; checksum, won't bother checking for now
+  lda #ACK
+  jsr putchar
+
+  jsr getchar
+  cmp #EOT
+  beq @done
+  cmp #SOH
+  bne @err
+
+  ; increment pointer
+  lda workwl
+  beq @half_inc
+  lda #$00
+  sta workwl
+  inc workwh
+  bra @skip0
+@half_inc:
+  lda #$80
+  sta workwl
+@skip0:
+  bra get_block
+
+@done:
+  lda #ACK
+  jsr putchar
+  jsr delay_sec
+  lda #$0d
+  jsr putchar
+  rts
+
+@err:
+  lda #<str_err_xmodem_recv
+  sta workwl
+  lda #>str_err_xmodem_recv
+  sta workwh
+  jsr puts
+  rts
 
 do_run:
-  rts ; TODO
+  lda #$0d
+  jsr putchar
+  jmp (workw) ; for now we'll just have user programs hit reset when done
 
 init:
   lda #$00
@@ -182,6 +244,24 @@ getchar:
   lda ACIA_STAT
   and #$08
   beq getchar
+  lda ACIA_DATA
+  rts
+
+getchar_timeout:
+  ldy #$ff
+@outer:
+  ldx #$ff
+@inner:
+  lda ACIA_STAT
+  and #$08
+  bne @break
+  dex
+  bne @inner
+  dey
+  bne @outer
+  lda #$00
+  rts
+@break:
   lda ACIA_DATA
   rts
 
@@ -324,6 +404,8 @@ str_boot:
   .byte "ROM kernel ready", $0d, 0
 str_err_line_ovf:
   .byte "ERR: Line too long", 0
+str_err_xmodem_recv:
+  .byte "ERR: Xmodem receive failure", $0d, 0
 
   .segment "RESETVEC"
   .word $0000, reset, $0000
