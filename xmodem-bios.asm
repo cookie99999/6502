@@ -89,10 +89,8 @@ parseline:
   cmp #'R'
   beq do_run
   ; other non hex digit - error
-  cmp #'0'
-  bcc bad_input ; a < 0
-  cmp #'F' + 1
-  bcs bad_input ; a > F
+  jsr isdigit
+  bcc bad_input
   ; inbuf must contain a hex address, get it
   pha
   inx
@@ -263,6 +261,10 @@ do_xmodem:
 do_run:
   lda #$0d
   jsr putchar
+  lda #<user_start
+  sta workwl
+  lda #>user_start
+  sta workwh
   jmp (workw) ; for now we'll just have user programs hit reset when done
 
 init:
