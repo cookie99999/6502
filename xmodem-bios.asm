@@ -187,6 +187,14 @@ do_poke: ; starts with x pointing at the :
   pla
   jsr asc2byte
   sta (workw)
+  inx
+  lda inbuf, x
+  cmp #' '
+  bne @end
+  inx
+  lda inbuf, x
+  bra @skip1
+@end:
   rts
 
 do_xmodem:
