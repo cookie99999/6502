@@ -102,7 +102,7 @@ parseline:
   jsr asc2byte
   sta workwh
   inx
-  lda inbuf, x ; TODO "notdigit" routine
+  lda inbuf, x
   jsr isdigit
   bcs @shortskip
   ; short zero page addr
@@ -125,7 +125,47 @@ parseline:
   lda inbuf, x
   cmp #':'
   beq do_poke
-  jsr peek ; TODO range options
+  cmp #'.'
+  bne @skiprange
+  ; get second addr, max of 1 page for now
+  inx
+  lda inbuf, x
+  pha
+  inx
+  lda inbuf_x
+  sta workb
+  pla
+  jsr asc2byte
+  sta workw2h
+  inx
+  lda inbuf, x
+  jsr isdigit
+  bcs @shortskip2
+  ; short zero page addr
+  dex
+  lda workw2h
+  sta workw2l
+  lda #$00
+  sta workw2h
+  bra @skips2
+@shortskip2:
+  pha
+  inx
+  lda inbuf, x
+  sta workb
+  pla
+  jsr asc2byte
+  sta workw2l
+@skips2:
+  sec
+  lda workw2l
+  sbc workwl
+  tax
+  bra @skipr2
+@skiprange:
+  ldx #$01
+@skipr2:
+  jsr peek
   rts
 
 bad_input:
@@ -160,7 +200,7 @@ do_xmodem:
   cmp #SOH
   bne do_xmodem
   
-get_block:
+@get_block:
   jsr getchar ; block number
   sta workb
   jsr getchar ; negated block number
@@ -194,7 +234,7 @@ get_block:
   lda #$80
   sta workwl
 @skip0:
-  bra get_block
+  bra @get_block
 
 @done:
   lda #ACK
@@ -308,18 +348,20 @@ isdigit: ; char to test in a, carry set if true
   clc
   rts
 
-peek: ; addr in workw
+peek: ; addr in workw, count in x
   lda workwh
   jsr prbyte
   lda workwl
   jsr prbyte
   lda #':'
   jsr putchar
-  ; TODO loop mode that starts here, maybe num bytes to print in x
+@loop:
   lda #' '
   jsr putchar
   lda (workw)
   jsr prbyte
+  dex
+  bne @loop
   lda #$0d
   jsr putchar
   rts
