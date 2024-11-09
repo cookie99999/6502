@@ -1,6 +1,20 @@
   .setcpu "65C02"
   .include "hardware.inc"
 
+  .export putchar
+  .export getchar
+  .export puts
+  .export workwh
+  .export workwl
+  .export reset
+
+  .macro ld_ptr addr ; puts 16 bit pointer into workw
+  lda #<addr
+  sta workwl
+  lda #>addr
+  sta workwh
+  .endmacro
+  
   .segment "CODE"
 
   ACK = $06
@@ -9,7 +23,7 @@
   LF = $0a
   ESC = $1b
   SOH = $01
-  EOH = $04
+  EOT = $04
   CAN = $18
   SUB = $1a
 
@@ -35,10 +49,7 @@ reset:
   txs
   jsr init
 
-  lda #<str_boot
-  sta workwl
-  lda #>str_boot
-  sta workwh
+  ld_ptr str_boot
   jsr puts
 
   ; monitor line fetch
@@ -72,10 +83,7 @@ reset:
   bra @loop
 
 @line_ovf:
-  lda #<str_err_line_ovf
-  sta workwl
-  lda #>str_err_line_ovf
-  sta workwh
+  ld_ptr str_err_line_ovf
   jsr puts
   bra @loop
 
@@ -84,10 +92,14 @@ parseline:
   lda inbuf, x
   ; xmodem recv command?
   cmp #'X'
-  beq do_xmodem
+  bne @next1
+  jmp do_xmodem
+@next1:
   ; run user program command?
   cmp #'R'
-  beq do_run
+  bne @next2
+  jmp do_run
+@next2:
   ; other non hex digit - error
   jsr isdigit
   bcc bad_input
@@ -130,7 +142,7 @@ parseline:
   lda inbuf, x
   pha
   inx
-  lda inbuf_x
+  lda inbuf, x
   sta workb
   pla
   jsr asc2byte
@@ -189,22 +201,29 @@ do_poke: ; starts with x pointing at the :
   lda inbuf, x
   cmp #' '
   bne @end
+  inc workw
   inx
   lda inbuf, x
   bra @skip1
 @end:
   rts
 
+do_run:
+  lda #$0d
+  jsr putchar
+  ld_ptr user_start
+  jmp (workw) ; for now we'll just have user programs hit reset when done
+
 do_xmodem:
-  lda #<user_start
-  sta workwl
-  lda #>user_start
-  sta workwh
+  ld_ptr str_xmodem_start
+  jsr puts
+@sohwait:
+  ld_ptr user_start
   lda #NAK
   jsr putchar
   jsr getchar_timeout
   cmp #SOH
-  bne do_xmodem
+  bne @sohwait
   
 @get_block:
   jsr getchar ; block number
@@ -246,34 +265,29 @@ do_xmodem:
   lda #ACK
   jsr putchar
   jsr delay_sec
-  lda #$0d
-  jsr putchar
-  rts
-
-@err:
-  lda #<str_err_xmodem_recv
-  sta workwl
-  lda #>str_err_xmodem_recv
-  sta workwh
+  ld_ptr str_xmodem_finish
   jsr puts
   rts
 
-do_run:
-  lda #$0d
-  jsr putchar
-  lda #<user_start
-  sta workwl
-  lda #>user_start
-  sta workwh
-  jmp (workw) ; for now we'll just have user programs hit reset when done
+@err:
+  ld_ptr str_err_xmodem_recv
+  jsr puts
+  rts
 
 init:
   lda #$00
   sta ACIA_STAT ;reset
-  lda #$1e ;8n1, receiver clock source is baud rate
+  lda #$1f ;8n1, receiver clock source is baud rate
   sta ACIA_CTRL
-  lda #$07 ;all of that stuff turned off
+  lda #$0b ;all of that stuff turned off
   sta ACIA_CMD
+
+  lda VIA1_ACR
+  and #%00111111 ; one shot pb7 disabled
+  sta VIA1_ACR
+
+  lda #%11000000 ; set t1 interrupt
+  sta VIA1_IER
   rts
 
 tx_delay:
@@ -282,6 +296,25 @@ tx_delay:
 @loop:
   dex
   bne @loop
+  plx
+  rts
+
+delay_sec:
+  phx
+  pha
+  ldx #$10
+@outer:
+  lda #$ff
+  sta VIA1_T1C_L
+  sta VIA1_T1C_H
+@loop:
+  lda VIA1_IFR
+  and #$40
+  beq @loop
+  lda VIA1_T1C_L
+  dex
+  bne @outer
+  pla
   plx
   rts
 
@@ -370,6 +403,7 @@ peek: ; addr in workw, count in x
   jsr putchar
   lda (workw)
   jsr prbyte
+  inc workw
   dex
   bne @loop
   lda #$0d
@@ -454,6 +488,10 @@ asc2byte: ; first nyb in a, second in workb, returned in a
 
 str_boot:
   .byte "ROM kernel ready", $0d, 0
+str_xmodem_start:
+  .byte "Receiving Xmodem file...", $0d, 0
+str_xmodem_finish:
+  .byte "Successfully received Xmodem file", $0d, 0
 str_err_line_ovf:
   .byte "ERR: Line too long", 0
 str_err_xmodem_recv:
