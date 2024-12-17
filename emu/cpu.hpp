@@ -29,69 +29,69 @@ struct Instruction {
 
 const Instruction instr_set_nmos[256] = {
   {0x00, 1, 7, AD_IMPL, "BRK"}, {0x01, 2, 6, AD_XIND, "ORA"}, {0x02, 1, 1, AD_IMPL, "JAM"}, {0x03, 2, 8, AD_XIND, "SLO"},
-  {0x04, 2, 3, AD_ZP, "NOP"}, {0x05, 2, 3, AD_ZP, "ORA"}, {0x06, 2, 5, AD_ACC, "ASL"}, {0x07, 2, 5, AD_ZP, "SLO"},
+  {0x04, 2, 3, AD_ZP, "*NOP"}, {0x05, 2, 3, AD_ZP, "ORA"}, {0x06, 2, 5, AD_ZP, "ASL"}, {0x07, 2, 5, AD_ZP, "SLO"},
   {0x08, 1, 3, AD_IMPL, "PHP"}, {0x09, 2, 2, AD_IMM, "ORA"}, {0x0a, 1, 2, AD_ACC, "ASL"}, {0x0b, 2, 2, AD_IMM, "ANC"},
-  {0x0c, 3, 4, AD_ABS, "NOP"}, {0x0d, 3, 4, AD_ABS, "ORA"}, {0x0e, 3, 6, AD_ABS, "ASL"}, {0x0f, 3, 6, AD_ABS, "SLO"},
+  {0x0c, 3, 4, AD_ABS, "*NOP"}, {0x0d, 3, 4, AD_ABS, "ORA"}, {0x0e, 3, 6, AD_ABS, "ASL"}, {0x0f, 3, 6, AD_ABS, "SLO"},
   {0x10, 2, 2, AD_REL, "BPL"}, {0x11, 2, 5, AD_INDY, "ORA"}, {0x12, 1, 1, AD_IMPL, "JAM"}, {0x13, 2, 8, AD_INDY, "SLO"},
-  {0x14, 2, 8, AD_ZPX, "NOP"}, {0x15, 2, 4, AD_ZPX, "ORA"}, {0x16, 2, 6, AD_ZPX, "ASL"}, {0x17, 2, 6, AD_ZPX, "SLO"},
-  {0x18, 1, 2, AD_IMPL, "CLC"}, {0x19, 3, 4, AD_ABSY, "ORA"}, {0x1a, 1, 2, AD_IMPL, "NOP"}, {0x1b, 3, 7, AD_ABSY, "SLO"},
-  {0x1c, 3, 4, AD_ABSX, "NOP"}, {0x1d, 3, 4, AD_ABSX, "ORA"}, {0x1e, 3, 7, AD_ABSX, "ASL"}, {0x1f, 3, 7, AD_ABSX, "SLO"},
+  {0x14, 2, 4, AD_ZPX, "*NOP"}, {0x15, 2, 4, AD_ZPX, "ORA"}, {0x16, 2, 6, AD_ZPX, "ASL"}, {0x17, 2, 6, AD_ZPX, "SLO"},
+  {0x18, 1, 2, AD_IMPL, "CLC"}, {0x19, 3, 4, AD_ABSY, "ORA"}, {0x1a, 1, 2, AD_IMPL, "*NOP"}, {0x1b, 3, 7, AD_ABSY, "SLO"},
+  {0x1c, 3, 4, AD_ABSX, "*NOP"}, {0x1d, 3, 4, AD_ABSX, "ORA"}, {0x1e, 3, 7, AD_ABSX, "ASL"}, {0x1f, 3, 7, AD_ABSX, "SLO"},
   {0x20, 3, 6, AD_ABS, "JSR"}, {0x21, 2, 6, AD_XIND, "AND"}, {0x22, 1, 1, AD_IMPL, "JAM"}, {0x23, 2, 8, AD_XIND, "RLA"},
   {0x24, 2, 3, AD_ZP, "BIT"}, {0x25, 2, 3, AD_ZP, "AND"}, {0x26, 2, 5, AD_ZP, "ROL"}, {0x27, 2, 5, AD_ZP, "RLA"},
   {0x28, 1, 4, AD_IMPL, "PLP"}, {0x29, 2, 2, AD_IMM, "AND"}, {0x2a, 1, 2, AD_ACC, "ROL"}, {0x2b, 2, 2, AD_IMM, "ANC"},
   {0x2c, 3, 4, AD_ABS, "BIT"}, {0x2d, 3, 4, AD_ABS, "AND"}, {0x2e, 3, 6, AD_ABS, "ROL"}, {0x2f, 3, 6, AD_ABS, "RLA"},
   {0x30, 2, 2, AD_REL, "BMI"}, {0x31, 2, 5, AD_INDY, "AND"}, {0x32, 1, 1, AD_IMPL, "JAM"}, {0x33, 2, 8, AD_INDY, "RLA"},
-  {0x34, 2, 4, AD_ZPX, "NOP"}, {0x35, 2, 4, AD_ZPX, "AND"}, {0x36, 2, 6, AD_ZPX, "ROL"}, {0x37, 2, 6, AD_ZPX, "RLA"},
-  {0x38, 1, 2, AD_IMPL, "SEC"}, {0x39, 3, 4, AD_ABSY, "AND"}, {0x3a, 2, 1, AD_IMPL, "NOP"}, {0x3b, 3, 7, AD_ABSY, "RLA"},
-  {0x3c, 3, 4, AD_ABSX, "NOP"}, {0x3d, 3, 4, AD_ABSX, "AND"}, {0x3e, 3, 7, AD_ABSX, "ROL"}, {0x3f, 3, 7, AD_ABSX, "RLA"},
+  {0x34, 2, 4, AD_ZPX, "*NOP"}, {0x35, 2, 4, AD_ZPX, "AND"}, {0x36, 2, 6, AD_ZPX, "ROL"}, {0x37, 2, 6, AD_ZPX, "RLA"},
+  {0x38, 1, 2, AD_IMPL, "SEC"}, {0x39, 3, 4, AD_ABSY, "AND"}, {0x3a, 1, 2, AD_IMPL, "*NOP"}, {0x3b, 3, 7, AD_ABSY, "RLA"},
+  {0x3c, 3, 4, AD_ABSX, "*NOP"}, {0x3d, 3, 4, AD_ABSX, "AND"}, {0x3e, 3, 7, AD_ABSX, "ROL"}, {0x3f, 3, 7, AD_ABSX, "RLA"},
   {0x40, 1, 6, AD_IMPL, "RTI"}, {0x41, 2, 6, AD_XIND, "EOR"}, {0x42, 1, 1, AD_IMPL, "JAM"}, {0x43, 2, 8, AD_XIND, "SRE"},
-  {0x44, 2, 3, AD_ZP, "NOP"}, {0x45, 2, 4, AD_ZP, "EOR"}, {0x46, 2, 5, AD_ZP, "LSR"}, {0x47, 2, 5, AD_ZP, "SRE"},
+  {0x44, 2, 3, AD_ZP, "*NOP"}, {0x45, 2, 3, AD_ZP, "EOR"}, {0x46, 2, 5, AD_ZP, "LSR"}, {0x47, 2, 5, AD_ZP, "SRE"},
   {0x48, 1, 3, AD_IMPL, "PHA"}, {0x49, 2, 2, AD_IMM, "EOR"}, {0x4a, 1, 2, AD_ACC, "LSR"}, {0x4b, 2, 2, AD_IMM, "ASR"},
   {0x4c, 3, 3, AD_ABS, "JMP"}, {0x4d, 3, 4, AD_ABS, "EOR"}, {0x4e, 3, 6, AD_ABS, "LSR"}, {0x4f, 3, 6, AD_ABS, "SRE"},
   {0x50, 2, 2, AD_REL, "BVC"}, {0x51, 2, 5, AD_INDY, "EOR"}, {0x52, 1, 1, AD_IMPL, "JAM"}, {0x53, 2, 8, AD_INDY, "SRE"},
-  {0x54, 2, 4, AD_ZPX, "NOP"}, {0x55, 2, 4, AD_ZPX, "EOR"}, {0x56, 2, 6, AD_ZPX, "LSR"}, {0x57, 2, 6, AD_ZPX, "SRE"},
-  {0x58, 1, 2, AD_IMPL, "CLI"}, {0x59, 3, 4, AD_ABSY, "EOR"}, {0x5a, 1, 2, AD_IMPL, "NOP"}, {0x5b, 3, 7, AD_ABSY, "SRE"},
-  {0x5c, 3, 4, AD_ABSX, "NOP"}, {0x5d, 3, 4, AD_ABSX, "EOR"}, {0x5e, 3, 7, AD_ABSX, "LSR"}, {0x5f, 3, 7, AD_ABSX, "SRE"},
+  {0x54, 2, 4, AD_ZPX, "*NOP"}, {0x55, 2, 4, AD_ZPX, "EOR"}, {0x56, 2, 6, AD_ZPX, "LSR"}, {0x57, 2, 6, AD_ZPX, "SRE"},
+  {0x58, 1, 2, AD_IMPL, "CLI"}, {0x59, 3, 4, AD_ABSY, "EOR"}, {0x5a, 1, 2, AD_IMPL, "*NOP"}, {0x5b, 3, 7, AD_ABSY, "SRE"},
+  {0x5c, 3, 4, AD_ABSX, "*NOP"}, {0x5d, 3, 4, AD_ABSX, "EOR"}, {0x5e, 3, 7, AD_ABSX, "LSR"}, {0x5f, 3, 7, AD_ABSX, "SRE"},
   {0x60, 1, 6, AD_IMPL, "RTS"}, {0x61, 2, 6, AD_XIND, "ADC"}, {0x62, 1, 1, AD_IMPL, "JAM"}, {0x63, 2, 8, AD_XIND, "RRA"},
-  {0x64, 2, 3, AD_ZP, "NOP"}, {0x65, 2, 3, AD_ZP, "ADC"}, {0x66, 2, 5, AD_ZP, "ROR"}, {0x67, 2, 5, AD_ZP, "RRA"},
-  {0x68, 1, 4, AD_IMPL, "PLA"}, {0x69, 2, 2, AD_IMM, "ADC"}, {0x6a, 1, 2, AD_ACC, "ROR"}, {0x6b, 2, 2, AD_IMM, "ARR"},
+  {0x64, 2, 3, AD_ZP, "*NOP"}, {0x65, 2, 3, AD_ZP, "ADC"}, {0x66, 2, 5, AD_ZP, "ROR"}, {0x67, 2, 5, AD_ZP, "RRA"},
+  {0x68, 1, 4, AD_IMPL, "PLA"}, {0x69, 2, 2, AD_IMM, "ADC"}, {0x6a, 1, 2, AD_ACC, "ROR"}, {0x6b, 2, 2, AD_IMM, "*ARR"},
   {0x6c, 3, 5, AD_IND, "JMP"}, {0x6d, 3, 4, AD_ABS, "ADC"}, {0x6e, 3, 6, AD_ABS, "ROR"}, {0x6f, 3, 6, AD_ABS, "RRA"},
   {0x70, 2, 2, AD_REL, "BVS"}, {0x71, 2, 5, AD_INDY, "ADC"}, {0x72, 1, 1, AD_IMPL, "JAM"}, {0x73, 2, 8, AD_INDY, "RRA"},
-  {0x74, 2, 4, AD_ZPX, "NOP"}, {0x75, 2, 4, AD_ZPX, "ADC"}, {0x76, 2, 6, AD_ZPX, "ROR"}, {0x77, 2, 6, AD_ZPX, "RRA"},
-  {0x78, 1, 2, AD_IMPL, "SEI"}, {0x79, 3, 4, AD_ABSY, "ADC"}, {0x7a, 1, 2, AD_IMPL, "NOP"}, {0x7b, 3, 7, AD_ABSY, "RRA"},
-  {0x7c, 3, 4, AD_ABSX, "NOP"}, {0x7d, 3, 4, AD_ABSX, "ADC"}, {0x7e, 3, 7, AD_ABSX, "ROR"}, {0x7f, 3, 7, AD_ABSX, "RRA"},
-  {0x80, 2, 2, AD_IMM, "NOP"}, {0x81, 2, 6, AD_XIND, "STA"}, {0x82, 2, 2, AD_IMM, "NOP"}, {0x83, 2, 6, AD_XIND, "SAX"},
-  {0x84, 2, 3, AD_ZP, "STY"}, {0x85, 2, 3, AD_ZP, "STA"}, {0x86, 2, 3, AD_ZP, "STX"}, {0x87, 2, 3, AD_ZP, "SAX"},
-  {0x88, 1, 2, AD_IMPL, "DEY"}, {0x89, 2, 2, AD_IMM, "NOP"}, {0x8a, 1, 2, AD_IMPL, "TXA"}, {0x8b, 2, 2, AD_IMM, "XAA"},
-  {0x8c, 3, 4, AD_ABS, "STY"}, {0x8d, 3, 4, AD_ABS, "STA"}, {0x8e, 3, 4, AD_ABS, "STX"}, {0x8f, 3, 4, AD_ABS, "SAX"},
-  {0x90, 2, 2, AD_REL, "BCC"}, {0x91, 2, 6, AD_INDY, "STA"}, {0x92, 1, 1, AD_IMPL, "JAM"}, {0x93, 2, 6, AD_INDY, "SHA"},
+  {0x74, 2, 4, AD_ZPX, "*NOP"}, {0x75, 2, 4, AD_ZPX, "ADC"}, {0x76, 2, 6, AD_ZPX, "ROR"}, {0x77, 2, 6, AD_ZPX, "RRA"},
+  {0x78, 1, 2, AD_IMPL, "SEI"}, {0x79, 3, 4, AD_ABSY, "ADC"}, {0x7a, 1, 2, AD_IMPL, "*NOP"}, {0x7b, 3, 7, AD_ABSY, "RRA"},
+  {0x7c, 3, 4, AD_ABSX, "*NOP"}, {0x7d, 3, 4, AD_ABSX, "ADC"}, {0x7e, 3, 7, AD_ABSX, "ROR"}, {0x7f, 3, 7, AD_ABSX, "RRA"},
+  {0x80, 2, 2, AD_IMM, "*NOP"}, {0x81, 2, 6, AD_XIND, "STA"}, {0x82, 2, 2, AD_IMM, "NOP"}, {0x83, 2, 6, AD_XIND, "*SAX"},
+  {0x84, 2, 3, AD_ZP, "STY"}, {0x85, 2, 3, AD_ZP, "STA"}, {0x86, 2, 3, AD_ZP, "STX"}, {0x87, 2, 3, AD_ZP, "*SAX"},
+  {0x88, 1, 2, AD_IMPL, "DEY"}, {0x89, 2, 2, AD_IMM, "NOP"}, {0x8a, 1, 2, AD_IMPL, "TXA"}, {0x8b, 2, 2, AD_IMM, "*XAA"},
+  {0x8c, 3, 4, AD_ABS, "STY"}, {0x8d, 3, 4, AD_ABS, "STA"}, {0x8e, 3, 4, AD_ABS, "STX"}, {0x8f, 3, 4, AD_ABS, "*SAX"},
+  {0x90, 2, 2, AD_REL, "BCC"}, {0x91, 2, 6, AD_INDY, "STA"}, {0x92, 1, 1, AD_IMPL, "JAM"}, {0x93, 2, 6, AD_INDY, "*SHA"},
   {0x94, 2, 4, AD_ZPX, "STY"}, {0x95, 2, 4, AD_ZPX, "STA"}, {0x96, 2, 4, AD_ZPY, "STX"}, {0x97, 2, 4, AD_ZPY, "SAX"},
   {0x98, 1, 2, AD_IMPL, "TYA"}, {0x99, 3, 5, AD_ABSY, "STA"}, {0x9a, 1, 2, AD_IMPL, "TXS"}, {0x9b, 3, 5, AD_ABSX, "SHS"},
-  {0x9c, 3, 5, AD_ABSX, "SHY"}, {0x9d, 3, 5, AD_ABSX, "STA"}, {0x9e, 3, 5, AD_ABSY, "SHX"}, {0x9f, 3, 5, AD_ABSY, "SHA"},
-  {0xa0, 2, 2, AD_IMM, "LDY"}, {0xa1, 2, 6, AD_XIND, "LDA"}, {0xa2, 2, 2, AD_IMM, "LDX"}, {0xa3, 2, 6, AD_XIND, "LAX"},
-  {0xa4, 2, 3, AD_ZP, "LDY"}, {0xa5, 2, 3, AD_ZP, "LDA"}, {0xa6, 2, 3, AD_ZP, "LDX"}, {0xa7, 2, 3, AD_ZP, "LAX"},
-  {0xa8, 1, 2, AD_IMPL, "TAY"}, {0xa9, 2, 2, AD_IMM, "LDA"}, {0xaa, 1, 2, AD_IMPL, "TAX"}, {0xab, 2, 2, AD_IMM, "LAX"},
-  {0xac, 3, 4, AD_ABS, "LDY"}, {0xad, 3, 4, AD_ABS, "LDA"}, {0xae, 3, 4, AD_ABS, "LDX"}, {0xaf, 3, 4, AD_ABS, "LAX"},
-  {0xb0, 2, 2, AD_REL, "BCS"}, {0xb1, 2, 5, AD_INDY, "LDA"}, {0xb2, 1, 1, AD_IMPL, "JAM"}, {0xb3, 2, 5, AD_INDY, "LAX"},
-  {0xb4, 2, 4, AD_ZPX, "LDY"}, {0xb5, 2, 4, AD_ZPX, "LDA"}, {0xb6, 2, 4, AD_ZPY, "LDX"}, {0xb7, 2, 4, AD_ZPY, "LAX"},
-  {0xb8, 1, 2, AD_IMPL, "CLV"}, {0xb9, 3, 4, AD_ABSY, "LDA"}, {0xba, 1, 2, AD_IMPL, "TSX"}, {0xbb, 3, 4, AD_ABSY, "LAS"},
-  {0xbc, 3, 4, AD_ABSX, "LDY"}, {0xbd, 3, 4, AD_ABSX, "LDA"}, {0xbe, 3, 4, AD_ABSY, "LDX"}, {0xbf, 3, 4, AD_ABSY, "LAX"},
-  {0xc0, 2, 2, AD_IMM, "CPY"}, {0xc1, 2 ,6, AD_XIND, "CMP"}, {0xc2, 2, 2, AD_IMM, "NOP"}, {0xc3, 2, 8, AD_XIND, "DCP"},
-  {0xc4, 2, 3, AD_ZP, "CPY"}, {0xc5, 2, 3, AD_ZP, "CMP"}, {0xc6, 2, 5, AD_ZP, "DEC"}, {0xc7, 2, 5, AD_ZP, "DCP"},
+  {0x9c, 3, 5, AD_ABSX, "*SHY"}, {0x9d, 3, 5, AD_ABSX, "STA"}, {0x9e, 3, 5, AD_ABSY, "*SHX"}, {0x9f, 3, 5, AD_ABSY, "SHA"},
+  {0xa0, 2, 2, AD_IMM, "LDY"}, {0xa1, 2, 6, AD_XIND, "LDA"}, {0xa2, 2, 2, AD_IMM, "LDX"}, {0xa3, 2, 6, AD_XIND, "*LAX"},
+  {0xa4, 2, 3, AD_ZP, "LDY"}, {0xa5, 2, 3, AD_ZP, "LDA"}, {0xa6, 2, 3, AD_ZP, "LDX"}, {0xa7, 2, 3, AD_ZP, "*LAX"},
+  {0xa8, 1, 2, AD_IMPL, "TAY"}, {0xa9, 2, 2, AD_IMM, "LDA"}, {0xaa, 1, 2, AD_IMPL, "TAX"}, {0xab, 2, 2, AD_IMM, "*LAX"},
+  {0xac, 3, 4, AD_ABS, "LDY"}, {0xad, 3, 4, AD_ABS, "LDA"}, {0xae, 3, 4, AD_ABS, "LDX"}, {0xaf, 3, 4, AD_ABS, "*LAX"},
+  {0xb0, 2, 2, AD_REL, "BCS"}, {0xb1, 2, 5, AD_INDY, "LDA"}, {0xb2, 1, 1, AD_IMPL, "JAM"}, {0xb3, 2, 5, AD_INDY, "*LAX"},
+  {0xb4, 2, 4, AD_ZPX, "LDY"}, {0xb5, 2, 4, AD_ZPX, "LDA"}, {0xb6, 2, 4, AD_ZPY, "LDX"}, {0xb7, 2, 4, AD_ZPY, "*LAX"},
+  {0xb8, 1, 2, AD_IMPL, "CLV"}, {0xb9, 3, 4, AD_ABSY, "LDA"}, {0xba, 1, 2, AD_IMPL, "TSX"}, {0xbb, 3, 4, AD_ABSY, "*LAS"},
+  {0xbc, 3, 4, AD_ABSX, "LDY"}, {0xbd, 3, 4, AD_ABSX, "LDA"}, {0xbe, 3, 4, AD_ABSY, "LDX"}, {0xbf, 3, 4, AD_ABSY, "*LAX"},
+  {0xc0, 2, 2, AD_IMM, "CPY"}, {0xc1, 2 ,6, AD_XIND, "CMP"}, {0xc2, 2, 2, AD_IMM, "NOP"}, {0xc3, 2, 8, AD_XIND, "*DCP"},
+  {0xc4, 2, 3, AD_ZP, "CPY"}, {0xc5, 2, 3, AD_ZP, "CMP"}, {0xc6, 2, 5, AD_ZP, "DEC"}, {0xc7, 2, 5, AD_ZP, "*DCP"},
   {0xc8, 1, 2, AD_IMPL, "INY"}, {0xc9, 2, 2, AD_IMM, "CMP"}, {0xca, 1, 2, AD_IMPL, "DEX"}, {0xcb, 2, 2, AD_IMM, "SBX"},
-  {0xcc, 3, 4, AD_ABS, "CPY"}, {0xcd, 3, 4, AD_ABS, "CMP"}, {0xce, 3, 6, AD_ABS, "DEC"}, {0xcf, 3, 6, AD_ABS, "DCP"},
-  {0xd0, 2, 2, AD_REL, "BNE"}, {0xd1, 2, 5, AD_INDY, "CMP"}, {0xd2, 1, 1, AD_IMPL, "JAM"}, {0xd3, 2, 8, AD_INDY, "DCP"},
-  {0xd4, 2, 4, AD_ZPX, "NOP"}, {0xd5, 2, 4, AD_ZPX, "CMP"}, {0xd6, 2, 6, AD_ZPX, "DEC"}, {0xd7, 2, 6, AD_ZPX, "DCP"},
-  {0xd8, 1, 2, AD_IMPL, "CLD"}, {0xd9, 3, 4, AD_ABSY, "CMP"}, {0xda, 1, 2, AD_IMPL, "NOP"}, {0xdb, 3, 7, AD_ABSY, "DCP"},
-  {0xdc, 3, 4, AD_ABSX, "NOP"}, {0xdd, 3, 4, AD_ABSX, "CMP"}, {0xde, 3 ,7, AD_ABSX, "DEC"}, {0xdf, 3, 7, AD_ABSX, "DCP"},
-  {0xe0, 2, 2, AD_IMM, "CPX"}, {0xe1, 2, 6, AD_XIND, "SBC"}, {0xe2, 2, 2, AD_IMM, "NOP"}, {0xe3, 2, 8, AD_XIND, "ISC"},
-  {0xe4, 2, 3, AD_ZP, "CPX"}, {0xe5, 2, 3, AD_ZP, "SBC"}, {0xe6, 2, 5, AD_ZP, "INC"}, {0xe7, 2, 5, AD_ZP, "ISC"},
+  {0xcc, 3, 4, AD_ABS, "CPY"}, {0xcd, 3, 4, AD_ABS, "CMP"}, {0xce, 3, 6, AD_ABS, "DEC"}, {0xcf, 3, 6, AD_ABS, "*DCP"},
+  {0xd0, 2, 2, AD_REL, "BNE"}, {0xd1, 2, 5, AD_INDY, "CMP"}, {0xd2, 1, 1, AD_IMPL, "JAM"}, {0xd3, 2, 8, AD_INDY, "*DCP"},
+  {0xd4, 2, 4, AD_ZPX, "*NOP"}, {0xd5, 2, 4, AD_ZPX, "CMP"}, {0xd6, 2, 6, AD_ZPX, "DEC"}, {0xd7, 2, 6, AD_ZPX, "*DCP"},
+  {0xd8, 1, 2, AD_IMPL, "CLD"}, {0xd9, 3, 4, AD_ABSY, "CMP"}, {0xda, 1, 2, AD_IMPL, "*NOP"}, {0xdb, 3, 7, AD_ABSY, "*DCP"},
+  {0xdc, 3, 4, AD_ABSX, "*NOP"}, {0xdd, 3, 4, AD_ABSX, "CMP"}, {0xde, 3 ,7, AD_ABSX, "DEC"}, {0xdf, 3, 7, AD_ABSX, "*DCP"},
+  {0xe0, 2, 2, AD_IMM, "CPX"}, {0xe1, 2, 6, AD_XIND, "SBC"}, {0xe2, 2, 2, AD_IMM, "NOP"}, {0xe3, 2, 8, AD_XIND, "*ISC"},
+  {0xe4, 2, 3, AD_ZP, "CPX"}, {0xe5, 2, 3, AD_ZP, "SBC"}, {0xe6, 2, 5, AD_ZP, "INC"}, {0xe7, 2, 5, AD_ZP, "*ISC"},
   {0xe8, 1, 2, AD_IMPL, "INX"}, {0xe9, 2, 2, AD_IMM, "SBC"}, {0xea, 1, 2, AD_IMPL, "NOP"}, {0xeb, 2, 2, AD_IMM, "SBC"},
-  {0xec, 3, 4, AD_ABS, "CPX"}, {0xed, 3, 4, AD_ABS, "SBC"}, {0xee, 3, 6, AD_ABS, "INC"}, {0xef, 3, 6, AD_ABS, "ISC"},
-  {0xf0, 2, 2, AD_REL, "BEQ"}, {0xf1, 2, 5, AD_INDY, "SBC"}, {0xf2, 1, 1, AD_IMPL, "JAM"}, {0xf3, 2, 8, AD_INDY, "ISC"},
-  {0xf4, 2, 4, AD_ZPX, "NOP"}, {0xf5, 2, 4, AD_ZPX, "SBC"}, {0xf6, 2, 6, AD_ZPX, "INC"}, {0xf7, 2, 6, AD_ZPX, "ISC"},
-  {0xf8, 1, 2, AD_IMPL, "SED"}, {0xf9, 3, 4, AD_ABSY, "SBC"}, {0xfa, 1, 2, AD_IMPL, "NOP"}, {0xfb, 3, 7, AD_ABSY, "ISC"},
-  {0xfc, 3, 4, AD_ABSX, "NOP"}, {0xfd, 3, 4, AD_ABSX, "SBC"}, {0xfe, 3, 7, AD_ABSX, "INC"}, {0xff, 3, 7, AD_ABSX, "ISC"}
+  {0xec, 3, 4, AD_ABS, "CPX"}, {0xed, 3, 4, AD_ABS, "SBC"}, {0xee, 3, 6, AD_ABS, "INC"}, {0xef, 3, 6, AD_ABS, "*ISC"},
+  {0xf0, 2, 2, AD_REL, "BEQ"}, {0xf1, 2, 5, AD_INDY, "SBC"}, {0xf2, 1, 1, AD_IMPL, "JAM"}, {0xf3, 2, 8, AD_INDY, "*ISC"},
+  {0xf4, 2, 4, AD_ZPX, "*NOP"}, {0xf5, 2, 4, AD_ZPX, "SBC"}, {0xf6, 2, 6, AD_ZPX, "INC"}, {0xf7, 2, 6, AD_ZPX, "*ISC"},
+  {0xf8, 1, 2, AD_IMPL, "SED"}, {0xf9, 3, 4, AD_ABSY, "SBC"}, {0xfa, 1, 2, AD_IMPL, "*NOP"}, {0xfb, 3, 7, AD_ABSY, "ISC"},
+  {0xfc, 3, 4, AD_ABSX, "*NOP"}, {0xfd, 3, 4, AD_ABSX, "SBC"}, {0xfe, 3, 7, AD_ABSX, "INC"}, {0xff, 3, 7, AD_ABSX, "ISC"}
 };
 
 class CPU {
@@ -120,7 +120,12 @@ public:
 
   uint16_t fetch_addr(uint16_t addr) {
     uint8_t lo = memory[addr];
-    uint8_t hi = memory[addr + 1];
+    if (addr < 0x100) { //zp
+      addr = (addr + 1) % 0x100;
+    } else {
+      addr++;
+    }
+    uint8_t hi = memory[addr];
     return (uint16_t)((hi << 8) | lo);
   }
 
@@ -164,6 +169,10 @@ public:
     } else {
       pc += instr_set[opcode].bytes;
     }
+  }
+
+  bool page_cross(uint16_t old, uint16_t cur) {
+    return (old & 0x00ff) > (cur & 0x00ff);
   }
 
   void irq() {
@@ -240,6 +249,7 @@ public:
   }
 
   void disas2(uint8_t opcode) {
+    uint16_t tmpw;
     printf("%04X %02X", pc, opcode);
     if (instr_set[opcode].bytes > 1) {
       printf(" %02X", memory[pc + 1]);
@@ -255,7 +265,7 @@ public:
         break;
       case AD_ABS:
         printf(" $%04X", fetch_addr(pc + 1));
-        if (instr_set[opcode].mnemonic == "STX" || instr_set[opcode].mnemonic == "STY" || instr_set[opcode].mnemonic == "STA" || instr_set[opcode].mnemonic == "LDX" || instr_set[opcode].mnemonic == "LDY" || instr_set[opcode].mnemonic == "LDA") {
+        if (instr_set[opcode].mnemonic != "JMP" && instr_set[opcode].mnemonic != "JSR") {
           printf(" = %02X", fetch_mem_byte(fetch_addr(pc + 1)));
         }
         break;
@@ -266,22 +276,28 @@ public:
         printf(" $%04X,X @ %04X = %02X", fetch_addr(pc + 1), fetch_addr(pc + 1) + x, fetch_mem_byte(fetch_addr(pc + 1) + x));
         break;
       case AD_ABSY:
-        printf(" $%04X,Y @ %04X = %02X", fetch_addr(pc + 1), fetch_addr(pc + 1) + y, fetch_mem_byte(fetch_addr(pc + 1) + y));
+        printf(" $%04X,Y @ %04X = %02X", fetch_addr(pc + 1), (fetch_addr(pc + 1) + y) % 0x10000, fetch_mem_byte(fetch_addr(pc + 1) + y));
         break;
       case AD_ZPX:
-        printf(" $%02X,X @ %02X = %02X", memory[pc + 1], memory[pc + 1] + x, fetch_mem_byte(memory[pc + 1] + x));
+        printf(" $%02X,X @ %02X = %02X", memory[pc + 1], (memory[pc + 1] + x) % 0x100, fetch_mem_byte((memory[pc + 1] + x) % 0x100));
         break;
       case AD_ZPY:
-        printf(" $%02X,Y @ %02X = %02X", memory[pc + 1], memory[pc + 1] + y, fetch_mem_byte(memory[pc + 1] + y));
+        printf(" $%02X,Y @ %02X = %02X", memory[pc + 1], (memory[pc + 1] + y) % 0x100, fetch_mem_byte((memory[pc + 1] + y) % 0x100));
         break;
       case AD_IND:
-        printf(" ($%04X) = %04X", fetch_addr(pc + 1), fetch_addr(fetch_addr(pc + 1)));
+	tmpw = fetch_addr(pc + 1);
+        if ((tmpw & 0x00ff) == 0x00ff) {
+          tmpw = (uint16_t)fetch_mem_byte(tmpw) | (uint16_t)(fetch_mem_byte(tmpw - 0x00ff)) << 8;
+        } else {
+          tmpw = fetch_addr(tmpw);
+        }
+        printf(" ($%04X) = %04X", fetch_addr(pc + 1), tmpw);
         break;
       case AD_XIND:
-        printf(" ($%02X,X) @ %02X = %04X = %02X", memory[pc + 1], memory[pc + 1] + x, fetch_addr(memory[pc + 1] + x), fetch_mem_byte(fetch_addr(memory[pc + 1] + x)));
+        printf(" ($%02X,X) @ %02X = %04X = %02X", memory[pc + 1], (memory[pc + 1] + x) % 0x100, fetch_addr((memory[pc + 1] + x) % 0x100), fetch_mem_byte(fetch_addr((memory[pc + 1] + x) % 0x100)));
         break;
       case AD_INDY:
-        printf(" ($%02X),Y = %04X @ %04X = %02X", memory[pc + 1], fetch_addr(memory[pc + 1]), fetch_addr(memory[pc + 1]) + y, fetch_mem_byte(fetch_addr(memory[pc + 1]) + y));
+        printf(" ($%02X),Y = %04X @ %04X = %02X", memory[pc + 1], fetch_addr(memory[pc + 1]), (fetch_addr(memory[pc + 1]) + y) % 0x10000, fetch_mem_byte(fetch_addr(memory[pc + 1]) + y));
         break;
       case AD_REL:
         printf(" $%04X", pc + (int8_t)memory[pc + 1] + instr_set[opcode].bytes);
@@ -307,7 +323,6 @@ public:
     uint16_t tmpw;
     uint16_t store_addr;
     //todo: extra cycles on page cross for post indexed modes
-    //TODO IMPORTANT zero page wrap just put a modulo dumb shit
     switch (instr_set[opcode].mode) {
       case AD_IMPL:
         break;
@@ -323,24 +338,30 @@ public:
         break;
       case AD_ABSX:
         operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
+        if ((opcode & 0x0f) != 0x0e && opcode != 0x9d)
+	  cycles += page_cross(fetch_addr(pc + 1), fetch_addr(pc + 1) + x) ? 1 : 0;
         break;
       case AD_ABSY:
         operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
+	if (opcode != 0x99) //STA $nnnn, Y
+	  cycles += page_cross(fetch_addr(pc + 1), fetch_addr(pc + 1) + y) ? 1 : 0;
         break;
       case AD_ZP:
         operand = fetch_mem_byte(fetch_mem_byte(pc + 1));
         break;
       case AD_ZPX:
-        operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + x) % 0xff); //fix
+	operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + x) % 0x100);
         break;
       case AD_ZPY:
-        operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + y) % 0xff);
+        operand = fetch_mem_byte((fetch_mem_byte(pc + 1) + y) % 0x100);
         break;
       case AD_XIND:
-        operand = fetch_mem_byte(fetch_addr((fetch_mem_byte(pc + 1) + x) % 0xff));
+	operand = fetch_mem_byte(fetch_addr((fetch_mem_byte(pc + 1) + x) % 0x100));
         break;
       case AD_INDY:
         operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
+	if (opcode != 0x91) //STA ($nn), Y
+	  cycles += page_cross(fetch_addr(fetch_mem_byte(pc + 1)), fetch_addr(fetch_mem_byte(pc + 1)) + y) ? 1 : 0;
         break;
       case AD_IND: //only used by JMP ($nnnn)
         break;
@@ -363,13 +384,13 @@ public:
         store_addr = (uint16_t)fetch_mem_byte(pc + 1);
         break;
       case AD_ZPX:
-        store_addr = (uint16_t)fetch_mem_byte(pc + 1) + x;
+        store_addr = (uint16_t)(fetch_mem_byte(pc + 1) + x) % 0x100;
         break;
       case AD_ZPY:
-        store_addr = (uint16_t)fetch_mem_byte(pc + 1) + y;
+        store_addr = (uint16_t)(fetch_mem_byte(pc + 1) + y) % 0x100;
         break;
       case AD_XIND:
-        store_addr = fetch_addr(fetch_mem_byte(pc + 1) + x);
+        store_addr = fetch_addr((fetch_mem_byte(pc + 1) + x) % 0x100);
         break;
       case AD_INDY:
         store_addr = fetch_addr(fetch_mem_byte(pc + 1)) + y;
