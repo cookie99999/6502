@@ -322,7 +322,6 @@ public:
     uint8_t operand, tmp;
     uint16_t tmpw;
     uint16_t store_addr;
-    //todo: extra cycles on page cross for post indexed modes
     switch (instr_set[opcode].mode) {
       case AD_IMPL:
         break;
@@ -338,12 +337,14 @@ public:
         break;
       case AD_ABSX:
         operand = fetch_mem_byte(fetch_addr(pc + 1) + x);
-        if ((opcode & 0x0f) != 0x0e && opcode != 0x9d)
+        if ((opcode & 0x0f) != 0x0e && opcode != 0x9d && opcode != 0xdf &&
+	    opcode != 0xff && opcode != 0x1f && opcode != 0x3f && opcode != 0x7f && opcode != 0x5f)
 	  cycles += page_cross(fetch_addr(pc + 1), fetch_addr(pc + 1) + x) ? 1 : 0;
         break;
       case AD_ABSY:
         operand = fetch_mem_byte(fetch_addr(pc + 1) + y);
-	if (opcode != 0x99) //STA $nnnn, Y
+	if (opcode != 0x99 && opcode != 0xdb && opcode != 0xfb && opcode != 0x1b &&
+	    opcode != 0x3b && opcode != 0x7b && opcode != 0x5b) //STA DCP ISC SLO RLA RRA SRE
 	  cycles += page_cross(fetch_addr(pc + 1), fetch_addr(pc + 1) + y) ? 1 : 0;
         break;
       case AD_ZP:
@@ -360,7 +361,8 @@ public:
         break;
       case AD_INDY:
         operand = fetch_mem_byte(fetch_addr(fetch_mem_byte(pc + 1)) + y);
-	if (opcode != 0x91) //STA ($nn), Y
+	if (opcode != 0x91 && opcode != 0xd3 && opcode != 0xf3 &&
+	    opcode != 0x13 && opcode != 0x33 && opcode != 0x73 && opcode != 0x53) //STA DCP ISC SLO RLA RRA SRE
 	  cycles += page_cross(fetch_addr(fetch_mem_byte(pc + 1)), fetch_addr(fetch_mem_byte(pc + 1)) + y) ? 1 : 0;
         break;
       case AD_IND: //only used by JMP ($nnnn)
@@ -439,15 +441,14 @@ public:
     case 0x90: //BCC
       pc += instr_set[opcode].bytes;
       if (!(p & F_C)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
-	//todo: add another cycle if page boundary is crossed
       }
       break;
     case 0xB0: //BCS
       pc += instr_set[opcode].bytes;
       if ((p & F_C)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
 	//todo: add another cycle if page boundary is crossed
       }
@@ -455,7 +456,7 @@ public:
     case 0xF0: //BEQ
       pc += instr_set[opcode].bytes;
       if ((p & F_Z)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
 	//todo: add another cycle if page boundary is crossed
       }
@@ -463,7 +464,7 @@ public:
     case 0x30: //BMI
       pc += instr_set[opcode].bytes;
       if ((p & F_N)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
 	//todo: add another cycle if page boundary is crossed
       }
@@ -471,7 +472,7 @@ public:
     case 0xD0: //BNE
       pc += instr_set[opcode].bytes;
       if (!(p & F_Z)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
 	//todo: add another cycle if page boundary is crossed
       }
@@ -479,7 +480,7 @@ public:
     case 0x10: //BPL
       pc += instr_set[opcode].bytes;
       if (!(p & F_N)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
 	//todo: add another cycle if page boundary is crossed
       }
@@ -487,7 +488,7 @@ public:
     case 0x50: //BVC
       pc += instr_set[opcode].bytes;
       if (!(p & F_V)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
 	//todo: add another cycle if page boundary is crossed
       }
@@ -495,7 +496,7 @@ public:
     case 0x70: //BVS
       pc += instr_set[opcode].bytes;
       if ((p & F_V)) {
-	cycles += 1;
+	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
 	//todo: add another cycle if page boundary is crossed
       }
@@ -954,6 +955,148 @@ public:
       p = (((a >> 6) & 1) != ((a >> 5) & 1)) ? p | F_V : p & ~F_V;
       p = (a & (1 << 6)) ? p | F_C : p & ~F_C;
       pc += instr_set[opcode].bytes;
+      break;
+    case 0x4b: //ASR
+      tmp = a & operand;
+      p = (a & 1) ? p | F_C : p & ~F_C;
+      a = tmp >> 1;
+      p = p & ~F_N;
+      p = (a == 0) ? p | F_Z : p & ~F_Z;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0xcf:
+    case 0xdf:
+    case 0xdb:
+    case 0xc7:
+    case 0xd7:
+    case 0xc3:
+    case 0xd3: //DCP
+      operand--;
+      store_mem_byte(store_addr, operand);
+      p = (operand == a) ? p | F_Z : p & ~F_Z;
+      p = (operand <= a) ? p | F_C : p & ~F_C;
+      p = ((a - operand) & F_N) ? p | F_N : p & ~F_N;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0xef:
+    case 0xff:
+    case 0xfb:
+    case 0xe7:
+    case 0xf7:
+    case 0xe3:
+    case 0xf3: //ISC
+      operand++;
+      store_mem_byte(store_addr, operand);
+
+      operand ^= 0xff;
+      tmp = a;
+      a = a + operand + ((p & F_C) ? 1 : 0);
+      p = (a == 0) ? p | F_Z : p & ~F_Z;
+      p = (tmp + operand + ((p & F_C) ? 1 : 0) > 255) ? p | F_C : p & ~F_C; //todo: decimal mode carry
+      p = (~(tmp ^ operand) & (tmp ^ a) & 0x80) ? p | F_V : p & ~F_V;
+      p = (a & F_N) ? p | F_N : p & ~F_N;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0x2f:
+    case 0x3f:
+    case 0x3b:
+    case 0x27:
+    case 0x37:
+    case 0x23:
+    case 0x33: //RLA
+      tmp = p;
+      p = (operand & F_N) ? p | F_C : p & ~F_C;
+      operand = operand << 1;
+      operand |= tmp & F_C;
+      store_mem_byte(store_addr, operand);
+
+      a &= operand;
+      p = (a == 0) ? p | F_Z : p & ~F_Z;
+      p = (a & F_N) ? p | F_N : p & ~F_N;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0x6f:
+    case 0x7f:
+    case 0x7b:
+    case 0x67:
+    case 0x77:
+    case 0x63:
+    case 0x73: //RRA
+      tmp = p;
+      p = (operand & F_C) ? p | F_C : p & ~F_C;
+      operand = operand >> 1;
+      operand |= (tmp & F_C) << 7;
+      store_mem_byte(store_addr, operand);
+      
+      tmp = a;
+      a = a + operand + ((p & F_C) ? 1 : 0);
+      p = (a == 0) ? p | F_Z : p & ~F_Z;
+      p = (tmp + operand + ((p & F_C) ? 1 : 0) > 255) ? p | F_C : p & ~F_C; //todo: decimal mode carry
+      p = (~(tmp ^ operand) & (tmp ^ a) & 0x80) ? p | F_V : p & ~F_V;
+      p = (a & F_N) ? p | F_N : p & ~F_N;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0xcb: //SBX
+      tmp = a & x;
+      tmp -= operand;
+      x = tmp;
+      p = (x >= 0) ? p | F_C : p & ~F_C;
+      p = (x & F_N) ? p | F_N : p & ~F_N;
+      p = (x == 0) ? p | F_Z : p & ~F_Z;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0x0f:
+    case 0x1f:
+    case 0x1b:
+    case 0x07:
+    case 0x17:
+    case 0x03:
+    case 0x13: //SLO
+      p = (operand & F_N) ? p | F_C : p & ~F_C;
+      operand <<= 1;
+      store_mem_byte(store_addr, operand);
+      a |= operand;
+      p = (a == 0) ? p | F_Z : p & ~F_Z;
+      p = (a & F_N) ? p | F_N : p & ~F_N;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0x4f:
+    case 0x5f:
+    case 0x5b:
+    case 0x47:
+    case 0x57:
+    case 0x43:
+    case 0x53: //SRE
+      p = (operand & 1) ? p | F_C : p & ~F_C;
+      operand >>= 1;
+      store_mem_byte(store_addr, operand);
+      a ^= operand;
+      p = (a == 0) ? p | F_Z : p & ~F_Z;
+      p = (a & F_N) ? p | F_N : p & ~F_N;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0x8b: //XAA
+      tmp = a & 0xee; //in real hardware this value is nondeterministic
+      a = tmp & x & operand;
+      p = (operand == 0) ? p | F_Z : p & ~F_Z;
+      p = (a & F_N) ? p | F_N : p & ~F_N;
+      pc += instr_set[opcode].bytes;
+      break;
+    case 0x02:
+    case 0x12:
+    case 0x22:
+    case 0x32:
+    case 0x42:
+    case 0x52:
+    case 0x62:
+    case 0x72:
+    case 0x92:
+    case 0xb2:
+    case 0xd2:
+    case 0xf2: //JAM
+      pc += 2;
+      printf("JAM instruction encountered\n");
+      return 1;
       break;
     default:
       //printf("Unimplemented %s\n", instr_set[opcode].mnemonic);
