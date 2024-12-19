@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     if (cpu.eval())
       break;
     if (ss) {
-      //cpu.dbg_print();
+      cpu.dbg_print();
       std::cin.ignore();
     }
   }
