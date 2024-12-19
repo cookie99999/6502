@@ -104,7 +104,7 @@ public:
   uint16_t pc;
 
   uint8_t *memory;
-  int type;
+  int type; //todo: add a way to tell between nmos, nes, and cmos
   const Instruction *instr_set;
 
   unsigned long long cycles;
@@ -450,7 +450,6 @@ public:
       if ((p & F_C)) {
 	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
-	//todo: add another cycle if page boundary is crossed
       }
       break;
     case 0xF0: //BEQ
@@ -458,7 +457,6 @@ public:
       if ((p & F_Z)) {
 	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
-	//todo: add another cycle if page boundary is crossed
       }
       break;
     case 0x30: //BMI
@@ -466,7 +464,6 @@ public:
       if ((p & F_N)) {
 	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
-	//todo: add another cycle if page boundary is crossed
       }
       break;
     case 0xD0: //BNE
@@ -482,7 +479,6 @@ public:
       if (!(p & F_N)) {
 	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
-	//todo: add another cycle if page boundary is crossed
       }
       break;
     case 0x50: //BVC
@@ -490,7 +486,6 @@ public:
       if (!(p & F_V)) {
 	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
-	//todo: add another cycle if page boundary is crossed
       }
       break;
     case 0x70: //BVS
@@ -498,7 +493,6 @@ public:
       if ((p & F_V)) {
 	cycles += ((pc & 0xff00) != ((pc + (int8_t)operand) & 0xff00)) ? 2 : 1;
 	pc += (int8_t)operand;
-	//todo: add another cycle if page boundary is crossed
       }
       break;
     case 0x18: //CLC
