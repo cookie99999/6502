@@ -11,3 +11,4 @@
 *.log
 *.sym
 emu6502
+emu/target/
