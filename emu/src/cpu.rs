@@ -187,4 +187,59 @@ impl Cpu {
 	let result: u16 = ((self.pop_byte() as u16) << 8) | (self.pop_byte() as u16);
 	result
     }
+
+    pub fn disas(&mut self, opcode: u8) {
+	let instr: &Instruction = &self.instr_set[opcode as usize];
+	print!("{:04X} {opcode:02X}", self.pc);
+	if instr.bytes > 1 {
+	    print!(" {:02X}", self.bus.read_byte(self.pc + 1));
+	}
+	if instr.bytes > 2 {
+	    print!(" {:02X}", self.bus.read_byte(self.pc + 2));
+	}
+	print!(" {}", instr.mnemonic);
+
+	let operand_byte: u8 = self.bus.read_byte(self.pc + 1);
+	let operand_word: u16 = self.bus.read_word(self.pc + 1);
+
+	match instr.mode {
+	    AddrMode::Imm => print!(" #${:02X}", operand_byte),
+	    AddrMode::Abs => {
+		print!(" ${:04X}", operand_word);
+		if instr.mnemonic != "JMP" && instr.mnemonic != "JSR" {
+		    print!(" = {:02X}", self.bus.read_byte(operand_word));
+		}
+	    },
+	    AddrMode::ZP => print!(" ${:02X} = {:02X}", operand_byte, self.bus.read_byte(operand_byte as u16)),
+	    AddrMode::AbsX => print!(" ${:04X},X @ {:04X} = {:02X}", operand_word, operand_word + self.x as u16,
+				     self.bus.read_byte(operand_word + self.x as u16)),
+	    AddrMode::AbsY => print!(" ${:04X},Y @ {:04X} = {:02X}", operand_word, operand_word + self.y as u16,
+				     self.bus.read_byte(operand_word + self.y as u16)),
+	    AddrMode::ZPX => print!(" ${:02X},X @ {:02X} = {:02X}", operand_byte, (operand_byte + self.x) % 0x100,
+				    self.bus.read_byte(((operand_byte + self.x) % 0x100) as u16)),
+	    AddrMode::ZPY => print!(" ${:02X},Y @ {:02X} = {:02X}", operand_byte, (operand_byte + self.y) % 0x100,
+				    self.bus.read_byte(((operand_byte + self.y) % 0x100) as u16)),
+	    AddrMode::Ind => {
+		let tmpw: u16 = operand_word;
+		if (tmpw & 0x00ff) == 0x00ff {
+		    let tmpw: u16 = self.bus.read_byte(tmpw) as u16 | (self.bus.read_byte(tmpw - 0x00ff) << 8) as u16;
+		} else {
+		    let tmpw: u16 = self.bus.read_word(tmpw);
+		}
+		print!(" (${:04X}) = {:04X}", operand_word, tmpw);
+	    },
+	    AddrMode::XInd => print!(" (${:02X},X) @ {:02X} = {:04X} = {:02X}", operand_byte,
+				     (operand_byte + self.x) % 0x100,
+				     self.bus.read_word((operand_byte + self.x) as u16 % 0x100),
+				     self.bus.read_byte(self.bus.read_word((operand_byte + self.x) as u16 % 0x100))),
+	    AddrMode::IndY => print!(" (${:02X}),Y = {:04X} @ {:04X} = {:02X}", operand_byte,
+				     self.bus.read_word(operand_byte as u16),
+				     (self.bus.read_word(operand_byte as u16) + self.y as u16) % 0x10000,
+				     self.bus.read_byte(self.bus.read_word(operand_byte as u16) + self.y as u16)),
+	    AddrMode::Rel => print!(" ${:04X}", (self.pc as i16 + operand_byte as i16) as u16 + instr.bytes as u16),
+	    AddrMode::Acc => print!(" A"),
+	    AddrMode::Impl => {},
+	}
+	print!(" A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}", self.a, self.x, self.y, self.p.as_u8(), self.sp, self.cycles);
+    }   
 }
