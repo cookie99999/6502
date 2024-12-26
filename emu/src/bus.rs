@@ -14,7 +14,7 @@ const APUREG_END: u16 = 0x401f;
 const PRG_START: u16 = 0x4020;
 const PRG_END: u16 = 0xffff;
 
-struct NesBus {
+pub struct NesBus {
     wram: [u8; 0x800],
     //todo: ppu apu and io registers
     prg: [u8; 0xbfe0],
@@ -55,5 +55,14 @@ impl Bus for NesBus {
     fn write_word(&mut self, addr: u16, data: u16) {
 	self.write_byte(addr, (data >> 8) as u8);
 	self.write_byte(addr + 1, (data & 0x00ff) as u8);
+    }
+}
+
+impl NesBus {
+    pub fn new() -> Self {
+	NesBus {
+	    wram: [0; 0x800], //todo: not initialized to zero
+	    prg: [0; 0xbfe0],
+	}
     }
 }

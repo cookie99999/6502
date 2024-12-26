@@ -1,6 +1,7 @@
 extern crate bitflags;
 
 use crate::bus;
+use crate::bus::Bus;
 
 enum AddrMode {
     Impl, Imm, Abs, ZP,
@@ -96,6 +97,7 @@ enum CPUModel {
 }
 
 bitflags::bitflags! {
+    #[derive(Clone, Copy, Debug)]
     struct PSW: u8 {
 	const N = 0b10000000;
 	const V = 0b01000000;
@@ -108,6 +110,12 @@ bitflags::bitflags! {
     }
 }
 
+impl PSW {
+    pub fn as_u8(&self) -> u8 {
+	self.bits() as u8
+    }
+}
+
 pub struct Cpu {
     a: u8,
     x: u8,
@@ -115,7 +123,7 @@ pub struct Cpu {
     p: PSW,
     sp: u8,
     pc: u16,
-    memory: [u8; 0x10000],
+    bus: bus::NesBus,
     model: CPUModel,
     instr_set: &'static [Instruction; 256],
     cycles: u128,
@@ -130,10 +138,53 @@ impl Cpu {
 	    p: PSW::empty(),
 	    sp: 0xff,
 	    pc: 0,
-	    memory: [0; 0x10000],
+	    bus: bus::NesBus::new(),
 	    model: CPUModel::R2A03,
 	    instr_set: &instr_set_nmos,
 	    cycles: 0,
 	}
+    }
+
+    pub fn reset(&mut self, cold: bool) {
+	self.cycles = 7;
+	self.pc = self.bus.read_word(0xfffc);
+	self.sp -= 3; //todo: why? i don't remember
+	if cold {
+	    self.a = 0;
+	    self.x = 0;
+	    self.y = 0;
+	    self.sp = 0xfd;
+	    self.p = PSW::I | PSW::U;
+	}
+    }
+
+    pub fn irq(&mut self) {
+	if (self.p & PSW::I).as_u8() == 0 {
+	    return;
+	}
+	self.push_word(self.pc);
+	self.push_byte(self.p.as_u8());
+	self.p |= PSW::I;
+	self.pc = self.bus.read_word(0xfffe);
+    }
+
+    fn push_byte(&mut self, byte: u8) {
+	self.bus.write_byte(0x100 + self.sp as u16, byte);
+	self.sp -= 1;
+    }
+
+    fn push_word(&mut self, word: u16) {
+	self.push_byte(((word >> 8) & 0x00ff) as u8);
+	self.push_byte((word & 0x00ff) as u8);
+    }
+
+    fn pop_byte(&mut self) -> u8 {
+	self.sp += 1;
+	self.bus.read_byte(0x100 + self.sp as u16)
+    }
+
+    fn pop_word(&mut self) -> u16 {
+	let result: u16 = ((self.pop_byte() as u16) << 8) | (self.pop_byte() as u16);
+	result
     }
 }
