@@ -201,6 +201,8 @@ impl Cpu {
 
 	let operand_byte: u8 = self.bus.read_byte(self.pc + 1);
 	let operand_word: u16 = self.bus.read_word(self.pc + 1);
+	let tmp_xind: u16 = self.bus.read_word((operand_byte + self.x) as u16 % 0x100);
+	let tmp_indy: u16 = self.bus.read_word(operand_byte as u16) + self.y as u16;
 
 	match instr.mode {
 	    AddrMode::Imm => print!(" #${:02X}", operand_byte),
@@ -215,10 +217,10 @@ impl Cpu {
 				     self.bus.read_byte(operand_word + self.x as u16)),
 	    AddrMode::AbsY => print!(" ${:04X},Y @ {:04X} = {:02X}", operand_word, operand_word + self.y as u16,
 				     self.bus.read_byte(operand_word + self.y as u16)),
-	    AddrMode::ZPX => print!(" ${:02X},X @ {:02X} = {:02X}", operand_byte, (operand_byte + self.x) % 0x100,
-				    self.bus.read_byte(((operand_byte + self.x) % 0x100) as u16)),
-	    AddrMode::ZPY => print!(" ${:02X},Y @ {:02X} = {:02X}", operand_byte, (operand_byte + self.y) % 0x100,
-				    self.bus.read_byte(((operand_byte + self.y) % 0x100) as u16)),
+	    AddrMode::ZPX => print!(" ${:02X},X @ {:02X} = {:02X}", operand_byte, operand_byte + self.x,
+				    self.bus.read_byte((operand_byte + self.x) as u16)),
+	    AddrMode::ZPY => print!(" ${:02X},Y @ {:02X} = {:02X}", operand_byte, operand_byte + self.y,
+				    self.bus.read_byte((operand_byte + self.y) as u16)),
 	    AddrMode::Ind => {
 		let tmpw: u16 = operand_word;
 		if (tmpw & 0x00ff) == 0x00ff {
@@ -229,17 +231,36 @@ impl Cpu {
 		print!(" (${:04X}) = {:04X}", operand_word, tmpw);
 	    },
 	    AddrMode::XInd => print!(" (${:02X},X) @ {:02X} = {:04X} = {:02X}", operand_byte,
-				     (operand_byte + self.x) % 0x100,
+				     operand_byte + self.x,
 				     self.bus.read_word((operand_byte + self.x) as u16 % 0x100),
-				     self.bus.read_byte(self.bus.read_word((operand_byte + self.x) as u16 % 0x100))),
+				     self.bus.read_byte(tmp_xind)),
 	    AddrMode::IndY => print!(" (${:02X}),Y = {:04X} @ {:04X} = {:02X}", operand_byte,
 				     self.bus.read_word(operand_byte as u16),
-				     (self.bus.read_word(operand_byte as u16) + self.y as u16) % 0x10000,
-				     self.bus.read_byte(self.bus.read_word(operand_byte as u16) + self.y as u16)),
+				     self.bus.read_word(operand_byte as u16) + self.y as u16,
+				     self.bus.read_byte(tmp_indy)),
 	    AddrMode::Rel => print!(" ${:04X}", (self.pc as i16 + operand_byte as i16) as u16 + instr.bytes as u16),
 	    AddrMode::Acc => print!(" A"),
 	    AddrMode::Impl => {},
 	}
 	print!(" A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}", self.a, self.x, self.y, self.p.as_u8(), self.sp, self.cycles);
-    }   
+    }
+
+    pub fn step(&mut self) {
+	let opcode: u8 = self.bus.read_byte(self.pc);
+	self.disas(opcode);
+	let instr: &Instruction = &self.instr_set[opcode as usize];
+	self.cycles += instr.cycles as u128;
+
+	let mut operand: u8 = 0;
+	let mut store_addr: u16 = 0;
+	let mut tmp: u8 = 0;
+	let mut tmpw: u16 = 0;
+
+	match instr.mode {
+	    AddrMode::Impl => {},
+	    AddrMode::Acc => operand = self.a,
+	    AddrMode::Rel | AddrMode::Imm => operand = self.bus.read_byte(self.pc + 1),
+	    _ => {},
+	};
+    }
 }
