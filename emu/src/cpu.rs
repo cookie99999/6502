@@ -288,8 +288,8 @@ impl Cpu {
 		store_addr = self.bus.read_word(self.pc + 1).wrapping_add(self.y as u16);
 		operand = self.bus.read_byte(store_addr);
 		match instr.mnemonic {
-		    "STA" | "DCP" | "ISC" | "RLA" | "RRA" | "SHA" |
-		    "SHS" | "SHX" | "SLO" | "SRE" => {},
+		    "STA" | "*DCP" | "*ISC" | "*RLA" | "*RRA" | "*SHA" |
+		    "*SHS" | "*SHX" | "*SLO" | "*SRE" => {},
 		    _ => {
 			self.cycles += self.page_cross(store_addr, self.y) as u128;
 		    },
@@ -317,8 +317,8 @@ impl Cpu {
 		store_addr = self.bus.read_addr(tmpw).wrapping_add(self.y as u16);
 		operand = self.bus.read_byte(store_addr);
 		match instr.mnemonic {
-		    "STA" | "DCP" | "ISC" | "RLA" | "RRA" | "SHA" |
-		    "SLO" | "SRE" => {},
+		    "STA" | "*DCP" | "*ISC" | "*RLA" | "*RRA" | "*SHA" |
+		    "*SLO" | "*SRE" => {},
 		    _ => {
 			self.cycles += self.page_cross(store_addr, self.y) as u128;
 		    },
@@ -643,6 +643,162 @@ impl Cpu {
 		self.y = self.y.wrapping_add(1);
 		self.p.set(PSW::Z, self.y == 0);
 		self.p.set(PSW::N, (self.y & 0x80) != 0);
+	    },
+	    "*LAX" => {
+		self.a = operand;
+		self.x = operand;
+		self.p.set(PSW::Z, operand == 0);
+		self.p.set(PSW::N, (operand & 0x80) != 0);
+	    },
+	    "*SAX" => {
+		tmp = self.a & self.x;
+		self.bus.write_byte(store_addr, tmp);
+	    },
+	    "*LAS" => {
+		tmp = self.sp & operand;
+		self.a = tmp;
+		self.x = tmp;
+		self.sp = tmp;
+		self.p.set(PSW::Z, tmp == 0);
+		self.p.set(PSW::N, (tmp & 0x80) != 0);
+	    },
+	    "*SHA" => {
+		if instr.mode == AddrMode::AbsY {
+		    tmpw = self.bus.read_addr(self.pc - 2); //3 byte instr
+		    operand = (tmpw & 0xff00).wrapping_shr(8) as u8;
+		    operand = operand.wrapping_add(1);
+		} else {
+		    tmp = self.bus.read_byte(self.pc - 1); //2 byte instr
+		    tmpw = self.bus.read_addr(tmp as u16);
+		    operand = self.bus.read_byte(tmpw);
+		}
+		tmp = self.a & self.x & operand;
+		self.bus.write_byte(store_addr, tmp);
+	    },
+	    "*SHX" => {
+		tmpw = self.bus.read_addr(self.pc - 2); //3 byte instr
+		operand = (tmpw & 0xff00).wrapping_shr(8) as u8;
+		operand = operand.wrapping_add(1);
+		tmp = self.x & operand;
+		self.bus.write_byte(store_addr, tmp);
+	    },
+	    "*SHY" => {
+		tmpw = self.bus.read_addr(self.pc - 2); //3 byte instr
+		operand = (tmpw & 0xff00).wrapping_shr(8) as u8;
+		operand = operand.wrapping_add(1);
+		tmp = self.y & operand;
+		self.bus.write_byte(store_addr, tmp);
+	    },
+	    "*SHS" => {
+		self.sp = self.a & self.x;
+		tmpw = self.bus.read_addr(self.pc - 2); //3 byte instr
+		operand = (tmpw & 0xff00).wrapping_shr(8) as u8;
+		operand = operand.wrapping_add(1);
+		tmp = self.sp & operand;
+		self.bus.write_byte(store_addr, tmp);
+	    },
+	    "*ANC" => {
+		self.a &= operand;
+		self.p.set(PSW::Z, self.a == 0);
+		self.p.set(PSW::N | PSW::C, (self.a & 0x80) != 0);
+	    },
+	    "*ARR" => {
+		tmp = (self.a & operand) >> 1;
+		tmp &= ((self.p.contains(PSW::C) as u8) << 7) | 0x7f;
+		self.a = tmp;
+		self.p.set(PSW::V, ((self.a >> 6) & 1) != ((self.a >> 5) & 1));
+		self.p.set(PSW::C, (self.a & (1u8 << 6)) != 0);
+	    },
+	    "*ASR" => {
+		tmp = self.a & operand;
+		self.p.set(PSW::C, (self.a & 1) != 0);
+		self.a = tmp >> 1;
+		self.p.remove(PSW::N);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "*DCP" => {
+		operand = operand.wrapping_sub(1);
+		self.bus.write_byte(store_addr, operand);
+		self.p.set(PSW::Z, operand == self.a);
+		self.p.set(PSW::C, operand <= self.a);
+		self.p.set(PSW::N, (self.a.wrapping_sub(operand) & 0x80) != 0);
+	    },
+	    "*ISC" => {
+		operand = operand.wrapping_add(1);
+		self.bus.write_byte(store_addr, operand);
+		operand ^= 0xff;
+		tmp = self.a;
+		self.a = self.a.wrapping_add(operand);
+		let cflag = self.p.contains(PSW::C) as u8;
+		self.a = self.a.wrapping_add(cflag);
+		self.p.set(PSW::Z, self.a == 0);
+		let carry: bool = (tmp as u16 + operand as u16 + cflag as u16) > 0xff;
+		self.p.set(PSW::C, carry); //todo: decimal mode
+		let ovf: bool = (!(tmp ^ operand) & (tmp ^ self.a) & 0x80) != 0;
+		self.p.set(PSW::V, ovf);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "*RLA" => {
+		tmp = self.p.as_u8();
+		self.p.set(PSW::C, (operand & 0x80) != 0);
+		operand = operand << 1;
+		operand |= tmp & 1;
+		self.bus.write_byte(store_addr, operand);
+		self.a &= operand;
+		self.p.set(PSW::Z, self.a == 0);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "*RRA" => {
+		tmp = self.p.as_u8();
+		self.p.set(PSW::C, (operand & 1) != 0);
+		operand = operand >> 1;
+		operand |= (tmp & 1) << 7;
+		self.bus.write_byte(store_addr, operand);
+		tmp = self.a;
+		self.a = self.a.wrapping_add(operand);
+		let cflag = self.p.contains(PSW::C) as u8;
+		self.a = self.a.wrapping_add(cflag);
+		self.p.set(PSW::Z, self.a == 0);
+		let carry: bool = (tmp as u16 + operand as u16 + cflag as u16) > 0xff;
+		self.p.set(PSW::C, carry); //todo: decimal mode
+		let ovf: bool = (!(tmp ^ operand) & (tmp ^ self.a) & 0x80) != 0;
+		self.p.set(PSW::V, ovf);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "*SBX" => {
+		tmp = self.a & self.x;
+		tmp = tmp.wrapping_sub(operand);
+		self.x = tmp;
+		self.p.set(PSW::C, self.x >= 0);
+		self.p.set(PSW::N, (self.x & 0x80) != 0);
+		self.p.set(PSW::Z, self.x == 0);
+	    },
+	    "*SLO" => {
+		self.p.set(PSW::C, (operand & 0x80) != 0);
+		operand = operand << 1;
+		self.bus.write_byte(store_addr, operand);
+		self.a |= operand;
+		self.p.set(PSW::Z, self.a == 0);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "*SRE" => {
+		self.p.set(PSW::C, (operand & 1) != 0);
+		operand = operand >> 1;
+		self.bus.write_byte(store_addr, operand);
+		self.a ^= operand;
+		self.p.set(PSW::Z, self.a == 0);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "*XAA" => {
+		tmp = self.a & 0xee; //on real hardware this value is random
+		self.a = tmp & self.x & operand;
+		self.p.set(PSW::Z, operand == 0);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "*JAM" => {
+		self.pc += 2;
+		println!("JAM instruction encountered");
+		return true;
 	    },
 	    _ => println!("Unimplemented instruction {}", instr.mnemonic),
 	};
