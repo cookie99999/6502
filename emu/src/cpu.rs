@@ -136,13 +136,13 @@ impl Cpu {
 	    a: 0,
 	    x: 0,
 	    y: 0,
-	    p: PSW::empty(),
-	    sp: 0xff,
+	    p: PSW::I | PSW::U,
+	    sp: 0xfd,
 	    pc: 0,
 	    bus: bus::NesBus::new(),
 	    model: CPUModel::R2A03,
 	    instr_set: &instr_set_nmos,
-	    cycles: 0,
+	    cycles: 7,
 	}
     }
 
@@ -171,7 +171,7 @@ impl Cpu {
 
     fn push_byte(&mut self, byte: u8) {
 	self.bus.write_byte(0x100 + self.sp as u16, byte);
-	self.sp -= 1;
+	self.sp = self.sp.wrapping_sub(1);
     }
 
     fn push_word(&mut self, word: u16) {
@@ -180,13 +180,20 @@ impl Cpu {
     }
 
     fn pop_byte(&mut self) -> u8 {
-	self.sp += 1;
+	self.sp = self.sp.wrapping_add(1);
 	self.bus.read_byte(0x100 + self.sp as u16)
     }
 
     fn pop_word(&mut self) -> u16 {
-	let result: u16 = ((self.pop_byte() as u16) << 8) | (self.pop_byte() as u16);
+	let lo = self.pop_byte();
+	let hi = self.pop_byte();
+	let result: u16 = ((hi as u16) << 8) | (lo as u16);
 	result
+    }
+
+    fn page_cross(&mut self, new: u16, inc: u8) -> bool {
+	let old: u16 = new.wrapping_sub(inc as u16);
+	(old & 0x00ff) > (new & 0x00ff)
     }
 
     pub fn disas(&mut self, opcode: u8) {
@@ -202,8 +209,8 @@ impl Cpu {
 
 	let operand_byte: u8 = self.bus.read_byte(self.pc + 1);
 	let operand_word: u16 = self.bus.read_word(self.pc + 1);
-	let tmp_xind: u16 = self.bus.read_word((operand_byte + self.x) as u16 % 0x100);
-	let tmp_indy: u16 = self.bus.read_word(operand_byte as u16) + self.y as u16;
+	let tmp_xind: u16 = self.bus.read_addr((operand_byte.wrapping_add(self.x)) as u16);
+	let tmp_indy: u16 = self.bus.read_addr(operand_byte as u16).wrapping_add(self.y as u16);
 
 	match instr.mode {
 	    AddrMode::Imm => print!(" #${:02X}", operand_byte),
@@ -216,34 +223,34 @@ impl Cpu {
 	    AddrMode::ZP => print!(" ${:02X} = {:02X}", operand_byte, self.bus.read_byte(operand_byte as u16)),
 	    AddrMode::AbsX => print!(" ${:04X},X @ {:04X} = {:02X}", operand_word, operand_word + self.x as u16,
 				     self.bus.read_byte(operand_word + self.x as u16)),
-	    AddrMode::AbsY => print!(" ${:04X},Y @ {:04X} = {:02X}", operand_word, operand_word + self.y as u16,
-				     self.bus.read_byte(operand_word + self.y as u16)),
-	    AddrMode::ZPX => print!(" ${:02X},X @ {:02X} = {:02X}", operand_byte, operand_byte + self.x,
-				    self.bus.read_byte((operand_byte + self.x) as u16)),
-	    AddrMode::ZPY => print!(" ${:02X},Y @ {:02X} = {:02X}", operand_byte, operand_byte + self.y,
-				    self.bus.read_byte((operand_byte + self.y) as u16)),
+	    AddrMode::AbsY => print!(" ${:04X},Y @ {:04X} = {:02X}", operand_word, operand_word.wrapping_add(self.y as u16),
+				     self.bus.read_byte(operand_word.wrapping_add(self.y as u16))),
+	    AddrMode::ZPX => print!(" ${:02X},X @ {:02X} = {:02X}", operand_byte, operand_byte.wrapping_add(self.x),
+				    self.bus.read_byte((operand_byte.wrapping_add(self.x)) as u16)),
+	    AddrMode::ZPY => print!(" ${:02X},Y @ {:02X} = {:02X}", operand_byte, operand_byte.wrapping_add(self.y),
+				    self.bus.read_byte((operand_byte.wrapping_add(self.y)) as u16)),
 	    AddrMode::Ind => {
-		let tmpw: u16 = operand_word;
+		let mut tmpw: u16 = operand_word;
 		if (tmpw & 0x00ff) == 0x00ff {
-		    let tmpw: u16 = self.bus.read_byte(tmpw) as u16 | (self.bus.read_byte(tmpw - 0x00ff).checked_shl(8).unwrap_or(0)) as u16;
+		    tmpw = self.bus.read_byte(tmpw) as u16 | (self.bus.read_byte(tmpw - 0x00ff) as u16).wrapping_shl(8);
 		} else {
-		    let tmpw: u16 = self.bus.read_word(tmpw);
+		    tmpw = self.bus.read_word(tmpw);
 		}
 		print!(" (${:04X}) = {:04X}", operand_word, tmpw);
 	    },
 	    AddrMode::XInd => print!(" (${:02X},X) @ {:02X} = {:04X} = {:02X}", operand_byte,
-				     operand_byte + self.x,
-				     self.bus.read_word((operand_byte + self.x) as u16 % 0x100),
+				     operand_byte.wrapping_add(self.x),
+				     self.bus.read_addr((operand_byte.wrapping_add(self.x)) as u16),
 				     self.bus.read_byte(tmp_xind)),
 	    AddrMode::IndY => print!(" (${:02X}),Y = {:04X} @ {:04X} = {:02X}", operand_byte,
-				     self.bus.read_word(operand_byte as u16),
-				     self.bus.read_word(operand_byte as u16) + self.y as u16,
+				     self.bus.read_addr(operand_byte as u16),
+				     self.bus.read_addr(operand_byte as u16).wrapping_add(self.y as u16),
 				     self.bus.read_byte(tmp_indy)),
-	    AddrMode::Rel => print!(" ${:04X}", (self.pc as i16 + operand_byte as i16) as u16 + instr.bytes as u16),
+	    AddrMode::Rel => print!(" ${:04X}", (self.pc.wrapping_add_signed((operand_byte as i8) as i16)) as u16 + instr.bytes as u16),
 	    AddrMode::Acc => print!(" A"),
 	    AddrMode::Impl => {},
 	}
-	print!(" A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}", self.a, self.x, self.y, self.p.as_u8(), self.sp, self.cycles);
+	print!(" A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}\n", self.a, self.x, self.y, self.p.as_u8(), self.sp, self.cycles);
     }
 
     pub fn step(&mut self) -> bool {
@@ -269,12 +276,24 @@ impl Cpu {
 	    AddrMode::AbsX => {
 		store_addr = self.bus.read_word(self.pc + 1) + self.x as u16;
 		operand = self.bus.read_byte(store_addr);
-		//todo: cycles
+		match instr.mnemonic {
+		    "ADC" | "AND" | "CMP" | "EOR" | "LDA" | "LDY" |
+		    "ORA" | "SBC" | "*NOP" => {
+			self.cycles += self.page_cross(store_addr, self.x) as u128;
+		    },
+		    _ => {},
+		};
 	    },
 	    AddrMode::AbsY => {
-		store_addr = self.bus.read_word(self.pc + 1) + self.y as u16;
+		store_addr = self.bus.read_word(self.pc + 1).wrapping_add(self.y as u16);
 		operand = self.bus.read_byte(store_addr);
-		//todo: cycles
+		match instr.mnemonic {
+		    "STA" | "DCP" | "ISC" | "RLA" | "RRA" | "SHA" |
+		    "SHS" | "SHX" | "SLO" | "SRE" => {},
+		    _ => {
+			self.cycles += self.page_cross(store_addr, self.y) as u128;
+		    },
+		};
 	    },
 	    AddrMode::ZP => {
 		store_addr = self.bus.read_byte(self.pc + 1) as u16;
@@ -290,13 +309,20 @@ impl Cpu {
 	    },
 	    AddrMode::XInd => {
 		tmpw = self.bus.read_byte(self.pc + 1).wrapping_add(self.x) as u16;
-		store_addr = self.bus.read_word(tmpw);
+		store_addr = self.bus.read_addr(tmpw);
 		operand = self.bus.read_byte(store_addr);
 	    },
 	    AddrMode::IndY => {
 		tmpw = self.bus.read_byte(self.pc + 1) as u16;
-		store_addr = self.bus.read_word(tmpw) + self.y as u16;
+		store_addr = self.bus.read_addr(tmpw).wrapping_add(self.y as u16);
 		operand = self.bus.read_byte(store_addr);
+		match instr.mnemonic {
+		    "STA" | "DCP" | "ISC" | "RLA" | "RRA" | "SHA" |
+		    "SLO" | "SRE" => {},
+		    _ => {
+			self.cycles += self.page_cross(store_addr, self.y) as u128;
+		    },
+		};
 	    },
 	    AddrMode::Ind => { //only used for JMP ($nnnn), wraps at page boundary
 		tmpw = self.bus.read_word(self.pc + 1);
@@ -310,7 +336,7 @@ impl Cpu {
 
 	self.pc += instr.bytes as u16;
 	match instr.mnemonic {
-	    "NOP" => {},
+	    "NOP" | "*NOP" => {},
 	    "BRK" => {
 		self.pc += 1; //1 byte instruction, increase 2 bytes total
 		return true; //todo get rid
@@ -352,12 +378,12 @@ impl Cpu {
 	    },
 	    "BNE" => {
 		if !(self.p.contains(PSW::Z)) {
-		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+		    if (self.pc & 0xff00) != (self.pc.wrapping_add_signed((operand as i8) as i16) as u16) & 0xff00 {
 			self.cycles += 2;
 		    } else {
 			self.cycles += 1;
 		    }
-		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		    self.pc = self.pc.wrapping_add_signed((operand as i8) as i16) as u16;
 		}
 	    },
 	    "BEQ" => {
@@ -533,7 +559,7 @@ impl Cpu {
 		tmp = self.p.as_u8();
 		self.p.set(PSW::C, (operand & 0x01) != 0);
 		operand = operand >> 1;
-		operand |= tmp & 0x80;
+		operand |= (tmp & 0x01) << 7;
 		self.p.set(PSW::Z, operand == 0);
 		self.p.set(PSW::N, (tmp & 1) != 0);
 		if instr.mode == AddrMode::Acc {
@@ -544,9 +570,9 @@ impl Cpu {
 	    },
 	    "ADC" => {
 		tmp = self.a;
-		self.a += operand;
+		self.a = self.a.wrapping_add(operand);
 		let cflag = self.p.contains(PSW::C) as u8;
-		self.a += cflag;
+		self.a = self.a.wrapping_add(cflag);
 
 		self.p.set(PSW::Z, self.a == 0);
 		let carry: bool = (tmp as u16 + operand as u16 + cflag as u16) > 0xff;
@@ -556,19 +582,19 @@ impl Cpu {
 		self.p.set(PSW::N, (self.a & 0x80) != 0);
 	    },
 	    "CMP" => {
-		tmp = self.a - operand;
+		tmp = self.a.wrapping_sub(operand);
 		self.p.set(PSW::Z, self.a == operand);
 		self.p.set(PSW::N, (tmp & 0x80) != 0);
 		self.p.set(PSW::C, operand <= self.a);
 	    },
 	    "CPX" => {
-		tmp = self.x - operand;
+		tmp = self.x.wrapping_sub(operand);
 		self.p.set(PSW::Z, self.x == operand);
 		self.p.set(PSW::N, (tmp & 0x80) != 0);
 		self.p.set(PSW::C, operand <= self.x);
 	    },
 	    "CPY" => {
-		tmp = self.y - operand;
+		tmp = self.y.wrapping_sub(operand);
 		self.p.set(PSW::Z, self.y == operand);
 		self.p.set(PSW::N, (tmp & 0x80) != 0);
 		self.p.set(PSW::C, operand <= self.y);
@@ -576,9 +602,9 @@ impl Cpu {
 	    "SBC" | "*SBC" => {
 		operand ^= 0xff;
 		tmp = self.a;
-		self.a += operand;
+		self.a = self.a.wrapping_add(operand);
 		let cflag = self.p.contains(PSW::C) as u8;
-		self.a += cflag;
+		self.a = self.a.wrapping_add(cflag);
 		self.p.set(PSW::Z, self.a == 0);
 		let carry: bool = (tmp as u16 + operand as u16 + cflag as u16) > 0xff;
 		self.p.set(PSW::C, carry); //todo: decimal mode
@@ -587,34 +613,34 @@ impl Cpu {
 		self.p.set(PSW::N, (self.a & 0x80) != 0);
 	    },
 	    "DEC" => {
-		tmp = operand - 1;
+		tmp = operand.wrapping_sub(1);
 		self.p.set(PSW::Z, tmp == 0);
 		self.p.set(PSW::N, (tmp & 0x80) != 0);
 		self.bus.write_byte(store_addr, tmp);
 	    },
 	    "DEX" => {
-		self.x -= 1;
+		self.x = self.x.wrapping_sub(1);
 		self.p.set(PSW::Z, self.x == 0);
 		self.p.set(PSW::N, (self.x & 0x80) != 0);
 	    },
 	    "DEY" => {
-		self.y -= 1;
+		self.y = self.y.wrapping_sub(1);
 		self.p.set(PSW::Z, self.y == 0);
 		self.p.set(PSW::N, (self.y & 0x80) != 0);
 	    },
 	    "INC" => {
-		tmp = operand + 1;
+		tmp = operand.wrapping_add(1);
 		self.p.set(PSW::Z, tmp == 0);
 		self.p.set(PSW::N, (tmp & 0x80) != 0);
 		self.bus.write_byte(store_addr, tmp);
 	    },
 	    "INX" => {
-		self.x += 1;
+		self.x = self.x.wrapping_add(1);
 		self.p.set(PSW::Z, self.x == 0);
 		self.p.set(PSW::N, (self.x & 0x80) != 0);
 	    },
 	    "INY" => {
-		self.y += 1;
+		self.y = self.y.wrapping_add(1);
 		self.p.set(PSW::Z, self.y == 0);
 		self.p.set(PSW::N, (self.y & 0x80) != 0);
 	    },

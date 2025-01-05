@@ -11,7 +11,6 @@ fn main() {
     let buf: Vec<u8> = std::fs::read(path).unwrap();
     let ines_prg_sz: usize = buf[4] as usize * 0x4000;
     cpu.bus.load_prg(&buf[16..], ines_prg_sz);
-    println!("read_byte 0xfffd {:02X}", cpu.bus.read_byte(0xfffd));
     cpu.pc = 0xc000; //reset to headless start
     'running: loop {
 	if cpu.step() {

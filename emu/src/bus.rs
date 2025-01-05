@@ -1,6 +1,7 @@
 pub trait Bus {
     fn read_byte(&mut self, addr: u16) -> u8;
     fn read_word(&mut self, addr: u16) -> u16;
+    fn read_addr(&mut self, addr: u16) -> u16;
     fn write_byte(&mut self, addr: u16, data: u8);
     fn write_word(&mut self, addr: u16, data: u16);
 }
@@ -37,6 +38,18 @@ impl Bus for NesBus {
     fn read_word(&mut self, addr: u16) -> u16 {
 	let result: u16 = self.read_byte(addr) as u16 | ((self.read_byte(addr + 1) as u16) << 8);
 	result
+    }
+
+    fn read_addr(&mut self, addr: u16) -> u16 {
+	let mut addr = addr;
+	let lo = self.read_byte(addr);
+	if addr < 0x100 { //zero page word reads work different
+	    addr = (addr + 1) % 0x100;
+	} else {
+	    addr = addr + 1;
+	}
+	let hi = self.read_byte(addr);
+	(hi as u16) << 8 | lo as u16
     }
 
     fn write_byte(&mut self, addr: u16, data: u8) {
