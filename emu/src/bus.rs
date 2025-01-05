@@ -15,7 +15,23 @@ const APUREG_END: u16 = 0x401f;
 const PRG_START: u16 = 0x4020;
 const PRG_END: u16 = 0xffff;
 
+pub enum Mirroring {
+    Horizontal,
+    Vertical,
+    Both,
+}
+
+pub enum Mapper {
+    NROM,
+    Unsupported,
+}
+
 pub struct NesBus {
+    mirroring: Mirroring,
+    mapper: Mapper,
+    has_sram: bool,
+    has_trainer: bool,
+    alt_nametable: bool,
     wram: [u8; 0x800],
     //todo: ppu apu and io registers
     prg: [u8; 0xbfe0],
@@ -74,6 +90,11 @@ impl Bus for NesBus {
 impl NesBus {
     pub fn new() -> Self {
 	NesBus {
+	    mirroring: Mirroring::Vertical,
+	    mapper: Mapper::NROM,
+	    has_sram: false,
+	    has_trainer: false,
+	    alt_nametable: false,
 	    wram: [0; 0x800], //todo: not initialized to zero
 	    prg: [0; 0xbfe0],
 	}
@@ -88,4 +109,46 @@ impl NesBus {
 	    self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
 	}
     }
+
+    pub fn load_ines(&mut self, buf: &[u8]) {
+	match buf[0..4] {
+	    [0x4e, 0x45, 0x53, 0x1a] =>
+		println!("valid iNES"),
+	    _ => println!("invalid iNES"),
+	};
+	let prg_sz: usize = buf[4] as usize * 0x4000;
+	let chr_sz: usize = buf[5] as usize * 0x2000;
+	let fl6 = buf[6];
+	let fl7 = buf[7];
+	self.mirroring = match fl6 & 1 {
+	    0 => Mirroring::Vertical,
+	    1 => Mirroring::Horizontal,
+	    _ => Mirroring::Vertical, //fix
+	};
+
+	self.has_sram = ((fl6 & 2) >> 1) != 0;
+	self.has_trainer = ((fl6 & 4) >> 2) != 0;
+	self.alt_nametable = ((fl6 & 8) >> 3) != 0;
+	let mut mapper = ((fl6 & 0xf0) >> 4);
+	mapper |= (fl7 & 0xf0);
+	self.mapper = match mapper {
+	    0 => Mapper::NROM,
+	    _ => Mapper::Unsupported,
+	};
+	println!("mapper {mapper} prg size {prg_sz:04X}");
+
+	let buf_prg_start = match self.has_trainer {
+	    true => 16 + 512,
+	    false => 16,
+	};
+
+	//todo: load depending on mapper
+	for i in 0..prg_sz {
+	    self.prg[(0x8000 - PRG_START) as usize + i] = buf[i + buf_prg_start as usize];
+	}
+
+	for i in 0..prg_sz {
+	    self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
+	}
+    }	
 }

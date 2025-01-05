@@ -9,9 +9,9 @@ fn main() {
 
     let path = env::args().nth(1).expect("Usage: emu6502 <path>");
     let buf: Vec<u8> = std::fs::read(path).unwrap();
-    let ines_prg_sz: usize = buf[4] as usize * 0x4000;
-    cpu.bus.load_prg(&buf[16..], ines_prg_sz);
+    cpu.bus.load_ines(&buf);
     cpu.pc = 0xc000; //reset to headless start
+    
     'running: loop {
 	if cpu.step() {
 	    break 'running;
