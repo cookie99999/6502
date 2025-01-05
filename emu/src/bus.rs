@@ -30,7 +30,7 @@ impl Bus for NesBus {
 	    APUREG_START ..= APUREG_END =>
 		0, //todo
 	    PRG_START ..= PRG_END =>
-		self.prg[(addr - PRG_START) as usize], //todo: mappers etc
+		self.prg[(addr - PRG_START) as usize] //todo: mappers etc
 	}
     }
 
@@ -63,6 +63,16 @@ impl NesBus {
 	NesBus {
 	    wram: [0; 0x800], //todo: not initialized to zero
 	    prg: [0; 0xbfe0],
+	}
+    }
+
+    pub fn load_prg(&mut self, prg: &[u8], size: usize) {
+	for i in 0..size {
+	    self.prg[(0x8000 - PRG_START) as usize + i] = prg[i];
+	}
+
+	for i in 0..size {
+	    self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
 	}
     }
 }

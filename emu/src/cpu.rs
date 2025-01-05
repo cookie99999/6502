@@ -3,6 +3,7 @@ extern crate bitflags;
 use crate::bus;
 use crate::bus::Bus;
 
+#[derive(Debug, PartialEq)]
 enum AddrMode {
     Impl, Imm, Abs, ZP,
     AbsX, AbsY, ZPX, ZPY,
@@ -122,8 +123,8 @@ pub struct Cpu {
     y: u8,
     p: PSW,
     sp: u8,
-    pc: u16,
-    bus: bus::NesBus,
+    pub pc: u16,
+    pub bus: bus::NesBus,
     model: CPUModel,
     instr_set: &'static [Instruction; 256],
     cycles: u128,
@@ -224,7 +225,7 @@ impl Cpu {
 	    AddrMode::Ind => {
 		let tmpw: u16 = operand_word;
 		if (tmpw & 0x00ff) == 0x00ff {
-		    let tmpw: u16 = self.bus.read_byte(tmpw) as u16 | (self.bus.read_byte(tmpw - 0x00ff) << 8) as u16;
+		    let tmpw: u16 = self.bus.read_byte(tmpw) as u16 | (self.bus.read_byte(tmpw - 0x00ff).checked_shl(8).unwrap_or(0)) as u16;
 		} else {
 		    let tmpw: u16 = self.bus.read_word(tmpw);
 		}
@@ -245,7 +246,7 @@ impl Cpu {
 	print!(" A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}", self.a, self.x, self.y, self.p.as_u8(), self.sp, self.cycles);
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> bool {
 	let opcode: u8 = self.bus.read_byte(self.pc);
 	self.disas(opcode);
 	let instr: &Instruction = &self.instr_set[opcode as usize];
@@ -256,11 +257,369 @@ impl Cpu {
 	let mut tmp: u8 = 0;
 	let mut tmpw: u16 = 0;
 
+	//calculate operands
 	match instr.mode {
 	    AddrMode::Impl => {},
 	    AddrMode::Acc => operand = self.a,
 	    AddrMode::Rel | AddrMode::Imm => operand = self.bus.read_byte(self.pc + 1),
-	    _ => {},
+	    AddrMode::Abs => {
+		store_addr = self.bus.read_word(self.pc + 1);
+		operand = self.bus.read_byte(store_addr);
+	    },
+	    AddrMode::AbsX => {
+		store_addr = self.bus.read_word(self.pc + 1) + self.x as u16;
+		operand = self.bus.read_byte(store_addr);
+		//todo: cycles
+	    },
+	    AddrMode::AbsY => {
+		store_addr = self.bus.read_word(self.pc + 1) + self.y as u16;
+		operand = self.bus.read_byte(store_addr);
+		//todo: cycles
+	    },
+	    AddrMode::ZP => {
+		store_addr = self.bus.read_byte(self.pc + 1) as u16;
+		operand = self.bus.read_byte(store_addr);
+	    },
+	    AddrMode::ZPX => {
+		store_addr = self.bus.read_byte(self.pc + 1).wrapping_add(self.x) as u16;
+		operand = self.bus.read_byte(store_addr);
+	    },
+	    AddrMode::ZPY => {
+		store_addr = self.bus.read_byte(self.pc + 1).wrapping_add(self.y) as u16;
+		operand = self.bus.read_byte(store_addr);
+	    },
+	    AddrMode::XInd => {
+		tmpw = self.bus.read_byte(self.pc + 1).wrapping_add(self.x) as u16;
+		store_addr = self.bus.read_word(tmpw);
+		operand = self.bus.read_byte(store_addr);
+	    },
+	    AddrMode::IndY => {
+		tmpw = self.bus.read_byte(self.pc + 1) as u16;
+		store_addr = self.bus.read_word(tmpw) + self.y as u16;
+		operand = self.bus.read_byte(store_addr);
+	    },
+	    AddrMode::Ind => { //only used for JMP ($nnnn), wraps at page boundary
+		tmpw = self.bus.read_word(self.pc + 1);
+		if (tmpw & 0x00ff) == 0x00ff {
+		    store_addr = (self.bus.read_byte(tmpw) as u16) | (self.bus.read_byte(tmpw - 0x00ff) as u16) << 8;
+		} else {
+		    store_addr = self.bus.read_word(tmpw);
+		}
+	    },
 	};
+
+	self.pc += instr.bytes as u16;
+	match instr.mnemonic {
+	    "NOP" => {},
+	    "BRK" => {
+		self.pc += 1; //1 byte instruction, increase 2 bytes total
+		return true; //todo get rid
+		self.irq();
+	    },
+	    "JMP" => self.pc = store_addr,
+	    "JSR" => {
+		self.push_word(self.pc - 1); //3 byte instruction, want pc + 2
+		self.pc = store_addr;
+	    },
+	    "RTI" => {
+		self.p = PSW::from_bits(self.pop_byte()).expect("oop");
+		self.p |= PSW::U;
+		self.pc = self.pop_word();
+	    },
+	    "RTS" => {
+		self.pc = self.pop_word();
+		self.pc += 1;
+	    },
+	    "BCC" => {
+		if !(self.p.contains(PSW::C)) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "BCS" => {
+		if self.p.contains(PSW::C) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "BNE" => {
+		if !(self.p.contains(PSW::Z)) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "BEQ" => {
+		if self.p.contains(PSW::Z) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "BPL" => {
+		if !(self.p.contains(PSW::N)) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "BMI" => {
+		if self.p.contains(PSW::N) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "BVC" => {
+		if !(self.p.contains(PSW::V)) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "BVS" => {
+		if self.p.contains(PSW::V) {
+		    if (self.pc & 0xff00) != ((self.pc as i16 + operand as i16) as u16) & 0xff00 {
+			self.cycles += 2;
+		    } else {
+			self.cycles += 1;
+		    }
+		    self.pc = (self.pc as i16 + operand as i16) as u16;
+		}
+	    },
+	    "CLC" => self.p.remove(PSW::C),
+	    "CLD" => self.p.remove(PSW::D),
+	    "CLI" => self.p.remove(PSW::I),
+	    "CLV" => self.p.remove(PSW::V),
+	    "SEC" => self.p.insert(PSW::C),
+	    "SED" => self.p.insert(PSW::D),
+	    "SEI" => self.p.insert(PSW::I),
+	    "PHA" => self.push_byte(self.a),
+	    "PHP" => self.push_byte((self.p | PSW::U | PSW::B).as_u8()),
+	    "PLA" => {
+		self.a = self.pop_byte();
+		self.p.set(PSW::N, self.a & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "PLP" => {
+		self.p = PSW::from_bits(self.pop_byte()).expect("oop");
+		self.p.insert(PSW::U);
+		self.p.remove(PSW::B);
+	    },
+	    "AND" => {
+		self.a &= operand;
+		self.p.set(PSW::N, self.a & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "BIT" => {
+		tmp = self.a & operand;
+		self.p.set(PSW::N, operand & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::V, operand & (PSW::V.as_u8()) != 0);
+		self.p.set(PSW::Z, tmp == 0);
+	    },
+	    "EOR" => {
+		self.a ^= operand;
+		self.p.set(PSW::N, self.a & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "ORA" => {
+		self.a |= operand;
+		self.p.set(PSW::N, self.a & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "LDA" => {
+		self.a = operand;
+		self.p.set(PSW::N, self.a & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "LDX" => {
+		self.x = operand;
+		self.p.set(PSW::N, self.x & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.x == 0);
+	    },
+	    "LDY" => {
+		self.y = operand;
+		self.p.set(PSW::N, self.y & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.y == 0);
+	    },
+	    "STA" => self.bus.write_byte(store_addr, self.a),
+	    "STX" => self.bus.write_byte(store_addr, self.x),
+	    "STY" => self.bus.write_byte(store_addr, self.y),
+	    "TAX" => {
+		self.x = self.a;
+		self.p.set(PSW::N, self.x & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.x == 0);
+	    },
+	    "TAY" => {
+		self.y = self.a;
+		self.p.set(PSW::N, self.y & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.y == 0);
+	    },
+	    "TSX" => {
+		self.x = self.sp;
+		self.p.set(PSW::N, self.x & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.x == 0);
+	    },
+	    "TXA" => {
+		self.a = self.x;
+		self.p.set(PSW::N, self.a & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "TXS" => self.sp = self.x,
+	    "TYA" => {
+		self.a = self.y;
+		self.p.set(PSW::N, self.a & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, self.a == 0);
+	    },
+	    "ASL" => {
+		self.p.set(PSW::C, (operand & 0x80) != 0);
+		operand = operand << 1;
+		self.p.set(PSW::N, operand & (PSW::N.as_u8()) != 0);
+		self.p.set(PSW::Z, operand == 0);
+		if instr.mode == AddrMode::Acc {
+		    self.a = operand;
+		} else {
+		    self.bus.write_byte(store_addr, operand);
+		}
+	    },
+	    "LSR" => {
+		self.p.set(PSW::C, (operand & 0x01) != 0);
+		operand = operand >> 1;
+		self.p.remove(PSW::N);
+		self.p.set(PSW::Z, operand == 0);
+		if instr.mode == AddrMode::Acc {
+		    self.a = operand;
+		} else {
+		    self.bus.write_byte(store_addr, operand);
+		}
+	    },
+	    "ROL" => {
+		tmp = self.p.as_u8();
+		self.p.set(PSW::C, (operand & 0x80) != 0);
+		operand = operand << 1;
+		operand |= tmp & 1;
+		self.p.set(PSW::Z, operand == 0);
+		self.p.set(PSW::N, operand & (PSW::N.as_u8()) != 0);
+		if instr.mode == AddrMode::Acc {
+		    self.a = operand;
+		} else {
+		    self.bus.write_byte(store_addr, operand);
+		}
+	    },
+	    "ROR" => {
+		tmp = self.p.as_u8();
+		self.p.set(PSW::C, (operand & 0x01) != 0);
+		operand = operand >> 1;
+		operand |= tmp & 0x80;
+		self.p.set(PSW::Z, operand == 0);
+		self.p.set(PSW::N, (tmp & 1) != 0);
+		if instr.mode == AddrMode::Acc {
+		    self.a = operand;
+		} else {
+		    self.bus.write_byte(store_addr, operand);
+		}
+	    },
+	    "ADC" => {
+		tmp = self.a;
+		self.a += operand;
+		let cflag = self.p.contains(PSW::C) as u8;
+		self.a += cflag;
+
+		self.p.set(PSW::Z, self.a == 0);
+		let carry: bool = (tmp as u16 + operand as u16 + cflag as u16) > 0xff;
+		self.p.set(PSW::C, carry); //todo: decimal mode
+		let ovf: bool = (!(tmp ^ operand) & (tmp ^ self.a) & 0x80) != 0;
+		self.p.set(PSW::V, ovf);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "CMP" => {
+		tmp = self.a - operand;
+		self.p.set(PSW::Z, self.a == operand);
+		self.p.set(PSW::N, (tmp & 0x80) != 0);
+		self.p.set(PSW::C, operand <= self.a);
+	    },
+	    "CPX" => {
+		tmp = self.x - operand;
+		self.p.set(PSW::Z, self.x == operand);
+		self.p.set(PSW::N, (tmp & 0x80) != 0);
+		self.p.set(PSW::C, operand <= self.x);
+	    },
+	    "CPY" => {
+		tmp = self.y - operand;
+		self.p.set(PSW::Z, self.y == operand);
+		self.p.set(PSW::N, (tmp & 0x80) != 0);
+		self.p.set(PSW::C, operand <= self.y);
+	    },
+	    "SBC" | "*SBC" => {
+		operand ^= 0xff;
+		tmp = self.a;
+		self.a += operand;
+		let cflag = self.p.contains(PSW::C) as u8;
+		self.a += cflag;
+		self.p.set(PSW::Z, self.a == 0);
+		let carry: bool = (tmp as u16 + operand as u16 + cflag as u16) > 0xff;
+		self.p.set(PSW::C, carry); //todo: decimal mode
+		let ovf: bool = (!(tmp ^ operand) & (tmp ^ self.a) & 0x80) != 0;
+		self.p.set(PSW::V, ovf);
+		self.p.set(PSW::N, (self.a & 0x80) != 0);
+	    },
+	    "DEC" => {
+		tmp = operand - 1;
+		self.p.set(PSW::Z, tmp == 0);
+		self.p.set(PSW::N, (tmp & 0x80) != 0);
+		self.bus.write_byte(store_addr, tmp);
+	    },
+	    "DEX" => {
+		self.x -= 1;
+		self.p.set(PSW::Z, self.x == 0);
+		self.p.set(PSW::N, (self.x & 0x80) != 0);
+	    },
+	    "DEY" => {
+		self.y -= 1;
+		self.p.set(PSW::Z, self.y == 0);
+		self.p.set(PSW::N, (self.y & 0x80) != 0);
+	    },
+	    "INC" => {
+		tmp = operand + 1;
+		self.p.set(PSW::Z, tmp == 0);
+		self.p.set(PSW::N, (tmp & 0x80) != 0);
+		self.bus.write_byte(store_addr, tmp);
+	    },
+	    "INX" => {
+		self.x += 1;
+		self.p.set(PSW::Z, self.x == 0);
+		self.p.set(PSW::N, (self.x & 0x80) != 0);
+	    },
+	    "INY" => {
+		self.y += 1;
+		self.p.set(PSW::Z, self.y == 0);
+		self.p.set(PSW::N, (self.y & 0x80) != 0);
+	    },
+	    _ => println!("Unimplemented instruction {}", instr.mnemonic),
+	};
+	false
     }
 }
