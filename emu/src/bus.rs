@@ -1,3 +1,6 @@
+use crate::ppu;
+use crate::ppu::Ppu;
+
 pub trait Bus {
     fn read_byte(&mut self, addr: u16) -> u8;
     fn read_word(&mut self, addr: u16) -> u16;
@@ -15,6 +18,7 @@ const APUREG_END: u16 = 0x401f;
 const PRG_START: u16 = 0x4020;
 const PRG_END: u16 = 0xffff;
 
+#[derive(Debug)]
 pub enum Mirroring {
     Horizontal,
     Vertical,
@@ -35,6 +39,7 @@ pub struct NesBus {
     wram: [u8; 0x800],
     //todo: ppu apu and io registers
     prg: [u8; 0xbfe0],
+    ppu: ppu::Ppu,
 }
 
 impl Bus for NesBus {
@@ -97,19 +102,16 @@ impl NesBus {
 	    alt_nametable: false,
 	    wram: [0; 0x800], //todo: not initialized to zero
 	    prg: [0; 0xbfe0],
+	    ppu: ppu::Ppu::new(),
 	}
     }
 
-    pub fn load_prg(&mut self, prg: &[u8], size: usize) {
+    fn load_chr(&mut self, buf: &[u8], size: usize) {
 	for i in 0..size {
-	    self.prg[(0x8000 - PRG_START) as usize + i] = prg[i];
-	}
-
-	for i in 0..size {
-	    self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
+	    self.ppu.write_byte(i as u16, buf[i]);
 	}
     }
-
+    
     pub fn load_ines(&mut self, buf: &[u8]) {
 	match buf[0..4] {
 	    [0x4e, 0x45, 0x53, 0x1a] =>
@@ -135,7 +137,7 @@ impl NesBus {
 	    0 => Mapper::NROM,
 	    _ => Mapper::Unsupported,
 	};
-	println!("mapper {mapper} prg size {prg_sz:04X}");
+	println!("mapper {mapper} prg size {prg_sz:04X} chr size {chr_sz:04X} mirroring {:?}", self.mirroring);
 
 	let buf_prg_start = match self.has_trainer {
 	    true => 16 + 512,
@@ -150,5 +152,8 @@ impl NesBus {
 	for i in 0..prg_sz {
 	    self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
 	}
+
+	let chr_start = buf_prg_start + prg_sz;
+	self.load_chr(&buf[chr_start..], chr_sz);
     }	
 }

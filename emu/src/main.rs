@@ -1,5 +1,6 @@
 mod cpu;
 mod bus;
+mod ppu;
 
 use std::env;
 use crate::bus::Bus;
@@ -11,7 +12,7 @@ fn main() {
     let buf: Vec<u8> = std::fs::read(path).unwrap();
     cpu.bus.load_ines(&buf);
     cpu.pc = 0xc000; //reset to headless start
-    
+    return;
     'running: loop {
 	if cpu.step() {
 	    break 'running;
