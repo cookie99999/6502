@@ -1,5 +1,4 @@
 use crate::ppu;
-use crate::ppu::Ppu;
 
 pub trait Bus {
     fn read_byte(&mut self, addr: u16) -> u8;
@@ -131,8 +130,8 @@ impl NesBus {
 	self.has_sram = ((fl6 & 2) >> 1) != 0;
 	self.has_trainer = ((fl6 & 4) >> 2) != 0;
 	self.alt_nametable = ((fl6 & 8) >> 3) != 0;
-	let mut mapper = ((fl6 & 0xf0) >> 4);
-	mapper |= (fl7 & 0xf0);
+	let mut mapper = (fl6 & 0xf0) >> 4;
+	mapper |= fl7 & 0xf0;
 	self.mapper = match mapper {
 	    0 => Mapper::NROM,
 	    _ => Mapper::Unsupported,

@@ -26,7 +26,7 @@ macro_rules! instr_set {
     };
 }
 
-const instr_set_nmos: [Instruction; 256] = instr_set![
+const INSTR_SET_NMOS: [Instruction; 256] = instr_set![
     {0x00, 1, 7, AddrMode::Impl, "BRK"}, {0x01, 2, 6, AddrMode::XInd, "ORA"}, {0x02, 1, 1, AddrMode::Impl, "JAM"}, {0x03, 2, 8, AddrMode::XInd, "*SLO"},
   {0x04, 2, 3, AddrMode::ZP, "*NOP"}, {0x05, 2, 3, AddrMode::ZP, "ORA"}, {0x06, 2, 5, AddrMode::ZP, "ASL"}, {0x07, 2, 5, AddrMode::ZP, "*SLO"},
   {0x08, 1, 3, AddrMode::Impl, "PHP"}, {0x09, 2, 2, AddrMode::Imm, "ORA"}, {0x0a, 1, 2, AddrMode::Acc, "ASL"}, {0x0b, 2, 2, AddrMode::Imm, "*ANC"},
@@ -141,7 +141,7 @@ impl Cpu {
 	    pc: 0,
 	    bus: bus::NesBus::new(),
 	    model: CPUModel::R2A03,
-	    instr_set: &instr_set_nmos,
+	    instr_set: &INSTR_SET_NMOS,
 	    cycles: 7,
 	}
     }
@@ -261,8 +261,8 @@ impl Cpu {
 
 	let mut operand: u8 = 0;
 	let mut store_addr: u16 = 0;
-	let mut tmp: u8 = 0;
-	let mut tmpw: u16 = 0;
+	let mut tmp: u8;
+	let mut tmpw: u16;
 
 	//calculate operands
 	match instr.mode {
