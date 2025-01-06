@@ -38,7 +38,7 @@ pub struct NesBus {
     wram: [u8; 0x800],
     //todo: ppu apu and io registers
     prg: [u8; 0xbfe0],
-    ppu: ppu::Ppu,
+    pub ppu: ppu::Ppu,
 }
 
 impl Bus for NesBus {
