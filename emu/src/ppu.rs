@@ -6,10 +6,10 @@ const PAL_START: u16 = 0x3f00;
 const PAL_END: u16 = 0x3fff;
 
 pub struct Ppu {
-    vram: [u8; 0x1000],
-    chr: [u8; 0x2000],
-    palette: [u8; 0x20],
-    oam: [u8; 0x100],
+    pub vram: [u8; 0x1000],
+    pub chr: [u8; 0x2000],
+    pub palette: [u8; 0x20],
+    pub oam: [u8; 0x100],
     framebuffer: [u32; 256 * 240],
 }
 
