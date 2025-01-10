@@ -159,14 +159,18 @@ impl Cpu {
 	}
     }
 
-    pub fn irq(&mut self) {
-	if (self.p & PSW::I).as_u8() == 0 {
+    pub fn irq(&mut self, nmi: bool) {
+	if (self.p & PSW::I).as_u8() == 0 && !nmi {
 	    return;
 	}
 	self.push_word(self.pc);
 	self.push_byte(self.p.as_u8());
 	self.p |= PSW::I;
-	self.pc = self.bus.read_word(0xfffe);
+	if !nmi {
+	    self.pc = self.bus.read_word(0xfffe);
+	} else {
+	    self.pc = self.bus.read_word(0xfffa);
+	}
     }
 
     fn push_byte(&mut self, byte: u8) {
@@ -254,8 +258,16 @@ impl Cpu {
     }
 
     pub fn step(&mut self) -> bool {
+	if self.bus.ppu.int_pending {
+	    self.irq(false);
+	    self.bus.ppu.int_pending = false;
+	}
+	if self.bus.ppu.nmi_pending {
+	    self.irq(true);
+	    self.bus.ppu.nmi_pending = false;
+	}
 	let opcode: u8 = self.bus.read_byte(self.pc);
-	self.disas(opcode);
+	//self.disas(opcode);
 	let instr: &Instruction = &self.instr_set[opcode as usize];
 	self.cycles += instr.cycles as u128;
 
@@ -340,7 +352,7 @@ impl Cpu {
 	    "BRK" => {
 		self.pc += 1; //1 byte instruction, increase 2 bytes total
 		return true; //todo get rid
-		self.irq();
+		self.irq(false);
 	    },
 	    "JMP" => self.pc = store_addr,
 	    "JSR" => {

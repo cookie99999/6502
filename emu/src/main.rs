@@ -12,11 +12,10 @@ fn draw_screen(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
 	for x in (0..=255).enumerate() {
 	    for y in (0..240).enumerate() {
 		let px = ppu.read_pixel(x.1, y.1);
-		let offset = y.1 as usize * pitch + x.1 as usize * 4;
-		buf[offset + 3] = (px >> 24) as u8;
-		buf[offset + 2] = (px >> 16) as u8;
+		let offset = y.1 as usize * pitch + x.1 as usize * 3;
+		buf[offset] = (px >> 16) as u8;
 		buf[offset + 1] = (px >> 8) as u8;
-		buf[offset] = 0xff;
+		buf[offset + 2] = px as u8;
 	    }
 	}
     }).unwrap();
@@ -37,17 +36,15 @@ fn dump_tile(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture, x: u32, y: u32
 	    for (b, b2) in (0..=7).rev().enumerate() {
 		let c = ((p0 >> b2) & 1) | (((p1 >> b2) & 1) << 1);
 		let px: u32 = match c {
-		    0 => 0x000000ff,
-		    1 => 0x333333ff,
-		    2 => 0x888888ff,
-		    _ => 0xddddddff,
+		    0 => 0x000000,
+		    1 => 0x333333,
+		    2 => 0x888888,
+		    _ => 0xdddddd,
 		};
-		let offset = (y as usize + i) * pitch + (x as usize + b) * 4;
-		//RGBA8888 stores it backwards for some reason
-		buf[offset + 3] = (px >> 24) as u8;
-		buf[offset + 2] = (px >> 16) as u8;
+		let offset = (y as usize + i) * pitch + (x as usize + b) * 3;
+		buf[offset] = (px >> 16) as u8;
 		buf[offset + 1] = (px >> 8) as u8;
-		buf[offset] = 0xff;
+		buf[offset + 2] = px as u8;
 	    }
 	}
     }).unwrap();
@@ -81,7 +78,7 @@ fn main() {
     let mut main_canvas = main_win.into_canvas().build().unwrap();
     let main_tex_create = main_canvas.texture_creator();
     let mut main_tex = main_tex_create
-	.create_texture_streaming(PixelFormatEnum::RGBA8888, 256, 240)
+	.create_texture_streaming(PixelFormatEnum::RGB24, 256, 240)
 	.unwrap();
 
     let chr_win = video.window("Pattern Tables", 8 * 16 * 3 * 2, 8 * 16 * 3)
@@ -92,7 +89,7 @@ fn main() {
     let mut chr_canv = chr_win.into_canvas().build().unwrap();
     let chr_tex_create = chr_canv.texture_creator();
     let mut chr_tex = chr_tex_create
-	.create_texture_streaming(PixelFormatEnum::RGBA8888, 8*16*2, 8*16)
+	.create_texture_streaming(PixelFormatEnum::RGB24, 8*16*2, 8*16)
 	.unwrap();
 
     let mut event_pump = context.event_pump().unwrap();
