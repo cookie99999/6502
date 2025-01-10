@@ -56,7 +56,7 @@ impl Ppu {
 	    _ => 1,
 	};
 	let mut p0_addr: u16 = (tile as u16) << 4;
-	p0_addr |= ((table as u16) << 12);
+	p0_addr |= (table as u16) << 12;
 	let p1_addr: u16 = p0_addr | (1u16 << 3);
 
 	for i in 0..8 {
@@ -65,10 +65,10 @@ impl Ppu {
 	    for (b, b2) in (0..=7).rev().enumerate() {
 		let c = ((p0 >> b2) & 1) | (((p1 >> b2) & 1) << 1);
 		let px: u32 = match c {
-		    0 => 0x000000ff,
-		    1 => 0x333333ff,
-		    2 => 0x888888ff,
-		    _ => 0xddddddff,
+		    0 => 0x000000,
+		    1 => 0x333333,
+		    2 => 0x888888,
+		    _ => 0xdddddd,
 		};
 		self.write_pixel(x + b as u8, y + i as u8, px);
 	    }
