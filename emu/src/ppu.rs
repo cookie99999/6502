@@ -50,8 +50,12 @@ impl Ppu {
 
     pub fn write_byte(&mut self, addr: u16, byte: u8) {
 	match addr {
-	    CHR_START ..= CHR_END =>
+	    CHR_START ..= CHR_END => //todo: only allow if chr ram
 		self.chr[addr as usize] = byte,
+	    VRAM_START ..= VRAM_END =>
+		self.vram[(addr - VRAM_START) as usize] = byte,
+	    PAL_START ..= PAL_END =>
+		self.palette[(addr - PAL_START) as usize % 0x20] = byte,
 	    _ =>
 		println!("ppu write {addr:04x} todo"),
 	};
@@ -61,6 +65,10 @@ impl Ppu {
 	match addr {
 	    CHR_START ..= CHR_END =>
 		self.chr[addr as usize],
+	    VRAM_START ..= VRAM_END =>
+		self.vram[(addr - VRAM_START) as usize],
+	    PAL_START ..= PAL_END =>
+		self.palette[(addr - PAL_START) as usize % 0x20],
 	    _ =>
 		0,
 	}
@@ -77,7 +85,6 @@ impl Ppu {
 	    0x2007 => { //PPUDATA
 		self.write_byte(self.ppuaddr, byte);
 		self.ppuaddr += 1; //todo use ppuctrl value
-		println!("wrote {byte:02X} to ppu {:04X}", self.ppuaddr);
 	    },
 	    _ =>
 		println!("ppu reg write {addr:04x} todo"),
@@ -92,7 +99,9 @@ impl Ppu {
 	    },
 	    0x2007 => { //PPUDATA
 		let result = self.latch;
-		self.latch = self.read_byte(addr);
+		println!("latch was {:02X}", self.latch);
+		self.latch = self.read_byte(self.ppuaddr);
+		println!("latch is now {:02X} from {:04X}", self.latch, self.ppuaddr);
 		self.ppuaddr += 1; //todo use value from ppuctrl
 		println!("read {result:02X} from ppu");
 		result

@@ -77,7 +77,7 @@ impl Bus for NesBus {
 	    WRAM_START ..= WRAM_END =>
 		self.wram[(addr & 0x7fff) as usize] = data,
 	    PPUREG_START ..= PPUREG_END =>
-		self.ppu.write_reg(addr, data), //todo
+		self.ppu.write_reg(addr, data),
 	    APUREG_START ..= APUREG_END =>
 	    {}, //todo
 	    PRG_START ..= PRG_END =>
