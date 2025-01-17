@@ -23,6 +23,8 @@ pub struct Ppu {
     write_2: bool,
     pub int_pending: bool,
     pub nmi_pending: bool,
+    pub scanline: u16,
+    pub pixel: u16,
 }
 
 impl Ppu {
@@ -45,6 +47,8 @@ impl Ppu {
 	    write_2: false,
 	    int_pending: false,
 	    nmi_pending: false,
+	    scanline: 0,
+	    pixel: 21,
 	}
     }
 
@@ -56,8 +60,8 @@ impl Ppu {
 		self.vram[(addr - VRAM_START) as usize] = byte,
 	    PAL_START ..= PAL_END =>
 		self.palette[(addr - PAL_START) as usize % 0x20] = byte,
-	    _ =>
-		println!("ppu write {addr:04x} todo"),
+	    _ => {},
+		//println!("ppu write {addr:04x} todo"),
 	};
     }
 
@@ -86,8 +90,8 @@ impl Ppu {
 		self.write_byte(self.ppuaddr, byte);
 		self.ppuaddr += 1; //todo use ppuctrl value
 	    },
-	    _ =>
-		println!("ppu reg write {addr:04x} todo"),
+	    _ => {},
+		//println!("ppu reg write {addr:04x} todo"),
 	};
     }
 
@@ -95,15 +99,17 @@ impl Ppu {
 	match addr {
 	    0x2002 => { //PPUSTATUS
 		self.write_2 = false;
-		self.ppustatus
+		let tmp = self.ppustatus;
+		self.ppustatus = self.ppustatus & !0x80; //vblank flag cleared on read
+		tmp
 	    },
 	    0x2007 => { //PPUDATA
 		let result = self.latch;
-		println!("latch was {:02X}", self.latch);
+		//println!("latch was {:02X}", self.latch);
 		self.latch = self.read_byte(self.ppuaddr);
-		println!("latch is now {:02X} from {:04X}", self.latch, self.ppuaddr);
+		//println!("latch is now {:02X} from {:04X}", self.latch, self.ppuaddr);
 		self.ppuaddr += 1; //todo use value from ppuctrl
-		println!("read {result:02X} from ppu");
+		//println!("read {result:02X} from ppu");
 		result
 	    },
 	    _ =>
@@ -115,7 +121,7 @@ impl Ppu {
 	if self.write_2 {
 	    self.ppuaddr &= 0xff00;
 	    self.ppuaddr |= data as u16;
-	    println!("ppuaddr set to {:04X}", self.ppuaddr);
+	    //println!("ppuaddr set to {:04X}", self.ppuaddr);
 	} else {
 	    self.ppuaddr &= 0x00ff;
 	    self.ppuaddr |= (data as u16) << 8;
@@ -152,6 +158,26 @@ impl Ppu {
 		    _ => 0xdddddd,
 		};
 		self.write_pixel(x + b as u8, y + i as u8, px);
+	    }
+	}
+    }
+
+    pub fn step(&mut self, cyc: u128) {
+	self.pixel += cyc as u16;
+	if self.pixel >= 341 {
+	    self.pixel = self.pixel - 341;
+	    self.scanline += 1;
+
+	    if self.scanline == 241 && self.pixel > 0 {
+		if (self.ppuctrl & 0x80) != 0 {
+		    self.nmi_pending = true;
+		    self.ppustatus = self.ppustatus | 0x80;
+		}
+	    }
+
+	    if self.scanline >= 262 {
+		self.scanline = 0;
+		self.ppustatus = self.ppustatus & !0x80;
 	    }
 	}
     }

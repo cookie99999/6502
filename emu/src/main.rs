@@ -95,11 +95,13 @@ fn main() {
     let mut event_pump = context.event_pump().unwrap();
 
     main_canvas.clear();
+    main_canvas.present();
     chr_canv.clear();
     dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
     chr_canv.copy(&chr_tex, None, None).unwrap();
     chr_canv.present();
-    
+
+    cpu.pc = 0xc000;
     'running: loop {
 	for e in event_pump.poll_iter() {
 	    match e {
@@ -110,12 +112,14 @@ fn main() {
 		_ => {},
 	    }
 	}
-	
-	if cpu.step() {
+
+	let cyc = cpu.step();
+	if cyc == 0 {
 	    break 'running;
 	}
-	draw_screen(&mut cpu.bus.ppu, &mut main_tex);
-	main_canvas.copy(&main_tex, None, None).unwrap();
-	main_canvas.present();
+	cpu.bus.step(cyc);
+	//draw_screen(&mut cpu.bus.ppu, &mut main_tex);
+	//main_canvas.copy(&main_tex, None, None).unwrap();
+	//main_canvas.present();
     }
 }

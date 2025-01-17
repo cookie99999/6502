@@ -154,5 +154,9 @@ impl NesBus {
 
 	let chr_start = buf_prg_start + prg_sz;
 	self.load_chr(&buf[chr_start..], chr_sz);
-    }	
+    }
+
+    pub fn step(&mut self, cyc: u128) {
+	self.ppu.step(cyc * 3);
+    }
 }
