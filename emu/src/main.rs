@@ -58,6 +58,25 @@ fn dump_chr(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
     }
 }
 
+fn dump_nt(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
+    let base = 0x2000;
+    for i in 0..4 {
+	for j in 0..0x3c0 {
+	    let index = base + (i * 0x400) + j;
+	    let tile = ppu.read_byte(index);
+	    let mut tile_x = j % 32;
+	    let mut tile_y = j / 32;
+	    if i == 1 || i == 3 {
+		tile_x += 32;
+	    }
+	    if i == 2 || i == 3 {
+		tile_y += 30;
+	    }
+	    dump_tile(ppu, tex, tile_x as u32 * 8, tile_y as u32 * 8, tile, 1);
+	}
+    }
+}
+
 fn main() {
     let mut cpu = cpu::Cpu::new();
 
@@ -92,6 +111,17 @@ fn main() {
 	.create_texture_streaming(PixelFormatEnum::RGB24, 8*16*2, 8*16)
 	.unwrap();
 
+    let nt_win = video.window("Nametables", 512, 480)
+	.position_centered()
+	.opengl()
+	.build()
+	.unwrap();
+    let mut nt_canv = nt_win.into_canvas().build().unwrap();
+    let nt_tex_create = nt_canv.texture_creator();
+    let mut nt_tex = nt_tex_create
+	.create_texture_streaming(PixelFormatEnum::RGB24, 512, 480)
+	.unwrap();
+
     let mut event_pump = context.event_pump().unwrap();
 
     main_canvas.clear();
@@ -100,8 +130,8 @@ fn main() {
     dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
     chr_canv.copy(&chr_tex, None, None).unwrap();
     chr_canv.present();
+    nt_canv.clear();
 
-    cpu.pc = 0xc000;
     'running: loop {
 	for e in event_pump.poll_iter() {
 	    match e {
@@ -118,6 +148,11 @@ fn main() {
 	    break 'running;
 	}
 	cpu.bus.step(cyc);
+	if cpu.nmi_left {
+	    dump_nt(&mut cpu.bus.ppu, &mut nt_tex);
+	    nt_canv.copy(&nt_tex, None, None).unwrap();
+	    nt_canv.present();
+	}
 	//draw_screen(&mut cpu.bus.ppu, &mut main_tex);
 	//main_canvas.copy(&main_tex, None, None).unwrap();
 	//main_canvas.present();

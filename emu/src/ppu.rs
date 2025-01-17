@@ -1,3 +1,5 @@
+use crate::bus::Mirroring;
+
 const CHR_START: u16 = 0x0000;
 const CHR_END: u16 = 0x1fff;
 const VRAM_START: u16 = 0x2000;
@@ -25,6 +27,7 @@ pub struct Ppu {
     pub nmi_pending: bool,
     pub scanline: u16,
     pub pixel: u16,
+    pub mirroring: Mirroring,
 }
 
 impl Ppu {
@@ -49,6 +52,7 @@ impl Ppu {
 	    nmi_pending: false,
 	    scanline: 0,
 	    pixel: 21,
+	    mirroring: Mirroring::Vertical,
 	}
     }
 
@@ -56,12 +60,35 @@ impl Ppu {
 	match addr {
 	    CHR_START ..= CHR_END => //todo: only allow if chr ram
 		self.chr[addr as usize] = byte,
-	    VRAM_START ..= VRAM_END =>
+	    0x2000 ..= 0x23ff =>
 		self.vram[(addr - VRAM_START) as usize] = byte,
+	    0x2400 ..= 0x27ff => {
+		if self.mirroring == Mirroring::Horizontal {
+		    self.vram[(addr - VRAM_START - 0x400) as usize] = byte;
+		} else {
+		    self.vram[(addr - VRAM_START) as usize] = byte;
+		}
+	    },
+	    0x2800 ..= 0x2bff => {
+		if self.mirroring == Mirroring::Vertical {
+		    self.vram[(addr - VRAM_START - 0x800) as usize] = byte;
+		} else {
+		    self.vram[(addr - VRAM_START) as usize] = byte;
+		}
+	    },
+	    0x2c00 ..= 0x2fff => {
+		if self.mirroring == Mirroring::Horizontal {
+		    self.vram[(addr - VRAM_START - 0x400) as usize] = byte;
+		} else {
+		    self.vram[(addr - VRAM_START - 0x800) as usize] = byte;
+		}
+	    },
+	    0x3000 ..= 0x3eff => //mirror of vram according to nesdev
+		self.vram[(addr - 0x3000) as usize] = byte,
 	    PAL_START ..= PAL_END =>
 		self.palette[(addr - PAL_START) as usize % 0x20] = byte,
-	    _ => {},
-		//println!("ppu write {addr:04x} todo"),
+	    _ =>
+		println!("ppu write {addr:04x} todo"),
 	};
     }
 
@@ -69,8 +96,31 @@ impl Ppu {
 	match addr {
 	    CHR_START ..= CHR_END =>
 		self.chr[addr as usize],
-	    VRAM_START ..= VRAM_END =>
+	    0x2000 ..= 0x23ff =>
 		self.vram[(addr - VRAM_START) as usize],
+	    0x2400 ..= 0x27ff => {
+		if self.mirroring == Mirroring::Horizontal {
+		    self.vram[(addr - VRAM_START - 0x400) as usize]
+		} else {
+		    self.vram[(addr - VRAM_START) as usize]
+		}
+	    },
+	    0x2800 ..= 0x2bff => {
+		if self.mirroring == Mirroring::Vertical {
+		    self.vram[(addr - VRAM_START - 0x800) as usize]
+		} else {
+		    self.vram[(addr - VRAM_START) as usize]
+		}
+	    },
+	    0x2c00 ..= 0x2fff => {
+		if self.mirroring == Mirroring::Horizontal {
+		    self.vram[(addr - VRAM_START - 0x400) as usize]
+		} else {
+		    self.vram[(addr - VRAM_START - 0x800) as usize]
+		}
+	    },
+	    0x3000 ..= 0x3eff => //mirror of vram according to nesdev
+		self.vram[(addr - 0x3000) as usize],
 	    PAL_START ..= PAL_END =>
 		self.palette[(addr - PAL_START) as usize % 0x20],
 	    _ =>
@@ -78,20 +128,37 @@ impl Ppu {
 	}
     }
 
+    pub fn write_oam(&mut self, addr: usize, data: u8) {
+	self.oam[addr] = data;
+    }
+
+    pub fn read_oam(&mut self, addr: usize) -> u8 {
+	self.oam[addr]
+    }
+
     pub fn write_reg(&mut self, addr: u16, byte: u8) {
 	match addr {
 	    0x2000 => { //PPUCTRL
 		self.ppuctrl = byte;
-		println!("ppuctrl set to {:02X}", self.ppuctrl);
 	    },
+	    0x2001 => //PPUMASK
+		self.ppumask = byte,
+	    0x2003 => //OAMADDR
+		self.oamaddr = byte,
+	    0x2005 => //PPUSCROLL
+		self.write_ppuscroll(byte),
 	    0x2006 => //PPUADDR
 		self.write_ppuaddr(byte),
 	    0x2007 => { //PPUDATA
 		self.write_byte(self.ppuaddr, byte);
-		self.ppuaddr += 1; //todo use ppuctrl value
+		if (self.ppuctrl & 4) == 0 {
+		    self.ppuaddr += 1;
+		} else {
+		    self.ppuaddr += 32;
+		}
 	    },
-	    _ => {},
-		//println!("ppu reg write {addr:04x} todo"),
+	    _ => //OAMDMA is handled in the cpu
+		println!("ppu reg write {addr:04x} todo"),
 	};
     }
 
@@ -100,16 +167,17 @@ impl Ppu {
 	    0x2002 => { //PPUSTATUS
 		self.write_2 = false;
 		let tmp = self.ppustatus;
-		self.ppustatus = self.ppustatus & !0x80; //vblank flag cleared on read
+		//self.ppustatus = self.ppustatus & !0x80; //vblank flag cleared on read
 		tmp
 	    },
 	    0x2007 => { //PPUDATA
 		let result = self.latch;
-		//println!("latch was {:02X}", self.latch);
 		self.latch = self.read_byte(self.ppuaddr);
-		//println!("latch is now {:02X} from {:04X}", self.latch, self.ppuaddr);
-		self.ppuaddr += 1; //todo use value from ppuctrl
-		//println!("read {result:02X} from ppu");
+		if (self.ppuctrl & 4) == 0 {
+		    //self.ppuaddr += 1;
+		} else {
+		    //self.ppuaddr += 32;
+		}
 		result
 	    },
 	    _ =>
@@ -121,10 +189,18 @@ impl Ppu {
 	if self.write_2 {
 	    self.ppuaddr &= 0xff00;
 	    self.ppuaddr |= data as u16;
-	    //println!("ppuaddr set to {:04X}", self.ppuaddr);
 	} else {
 	    self.ppuaddr &= 0x00ff;
 	    self.ppuaddr |= (data as u16) << 8;
+	}
+	self.write_2 = !self.write_2;
+    }
+
+    fn write_ppuscroll(&mut self, data: u8) {
+	if self.write_2 {
+	    self.ppuscroll_y = data;
+	} else {
+	    self.ppuscroll_x = data;
 	}
 	self.write_2 = !self.write_2;
     }

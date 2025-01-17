@@ -17,7 +17,7 @@ const APUREG_END: u16 = 0x401f;
 const PRG_START: u16 = 0x4020;
 const PRG_END: u16 = 0xffff;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Mirroring {
     Horizontal,
     Vertical,
@@ -78,6 +78,13 @@ impl Bus for NesBus {
 		self.wram[(addr & 0x7fff) as usize] = data,
 	    PPUREG_START ..= PPUREG_END =>
 		self.ppu.write_reg(addr, data),
+	    0x4014 => { //OAMDMA
+		let start = (data as u16) << 8;
+		for i in 0..256 {
+		    let byte = self.read_byte(start + i as u16);
+		    self.ppu.write_oam(i, byte);
+		}
+	    },
 	    APUREG_START ..= APUREG_END =>
 	    {}, //todo
 	    PRG_START ..= PRG_END =>
@@ -126,6 +133,7 @@ impl NesBus {
 	    1 => Mirroring::Horizontal,
 	    _ => Mirroring::Vertical, //fix
 	};
+	self.ppu.mirroring = self.mirroring;
 
 	self.has_sram = ((fl6 & 2) >> 1) != 0;
 	self.has_trainer = ((fl6 & 4) >> 2) != 0;
@@ -148,8 +156,10 @@ impl NesBus {
 	    self.prg[(0x8000 - PRG_START) as usize + i] = buf[i + buf_prg_start as usize];
 	}
 
-	for i in 0..prg_sz {
-	    self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
+	if prg_sz <= 0x4000 {
+	    for i in 0..prg_sz {
+		self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
+	    }
 	}
 
 	let chr_start = buf_prg_start + prg_sz;

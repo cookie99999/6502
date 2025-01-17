@@ -128,6 +128,7 @@ pub struct Cpu {
     model: CPUModel,
     instr_set: &'static [Instruction; 256],
     cycles: u128,
+    pub nmi_left: bool, //hack to only have to redraw nametables once per frame
 }
 
 impl Cpu {
@@ -143,6 +144,7 @@ impl Cpu {
 	    model: CPUModel::R2A03,
 	    instr_set: &INSTR_SET_NMOS,
 	    cycles: 7,
+	    nmi_left: false,
 	}
     }
 
@@ -258,6 +260,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self) -> u128 {
+	self.nmi_left = false;
 	let oldcycles = self.cycles;
 	if self.bus.ppu.int_pending {
 	    self.irq(false);
@@ -266,9 +269,10 @@ impl Cpu {
 	if self.bus.ppu.nmi_pending {
 	    self.irq(true);
 	    self.bus.ppu.nmi_pending = false;
+	    self.nmi_left = true;
 	}
 	let opcode: u8 = self.bus.read_byte(self.pc);
-	self.disas(opcode);
+	//self.disas(opcode);
 	let instr: &Instruction = &self.instr_set[opcode as usize];
 	self.cycles += instr.cycles as u128;
 
@@ -352,7 +356,6 @@ impl Cpu {
 	    "NOP" | "*NOP" => {},
 	    "BRK" => {
 		self.pc += 1; //1 byte instruction, increase 2 bytes total
-		return 0; //debug
 		self.irq(false);
 	    },
 	    "JMP" => self.pc = store_addr,
