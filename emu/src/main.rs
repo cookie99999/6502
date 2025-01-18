@@ -21,7 +21,21 @@ fn draw_screen(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
     }).unwrap();
 }
 
-fn dump_tile(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture, x: u32, y: u32, tile: u8, table: u8) {
+const SYS_PALETTE: [u32; 64] = [
+    0x585858, 0x00237C, 0x0D1099, 0x300092, 0x4F006C, 0x600035,
+    0x5C0500, 0x461800, 0x272D00, 0x093E00, 0x004500, 0x004106,
+    0x003545, 0x000000, 0x000000, 0x000000, 0xA1A1A1, 0x0B53D7,
+    0x3337FE, 0x6621F7, 0x9515BE, 0xAC166E, 0xA62721, 0x864300,
+    0x596200, 0x2D7A00, 0x0C8500, 0x007F2A, 0x006D85, 0x000000,
+    0x000000, 0x000000, 0xFFFFFF, 0x51A5FE, 0x8084FE, 0xBC6AFE,
+    0xF15BFE, 0xFE5EC4, 0xFE7269, 0xE19321, 0xADB600, 0x79D300,
+    0x51DF21, 0x3AD974, 0x39C3DF, 0x424242, 0x000000, 0x000000,
+    0xFFFFFF, 0xB5D9FE, 0xCACAFE, 0xE3BEFE, 0xF9B8FE, 0xFEBAE7,
+    0xFEC3BC, 0xF4D199, 0xDEE086, 0xC6EC87, 0xB2F29D, 0xA7F0C3,
+    0xA8E7F0, 0xACACAC, 0x000000, 0x000000,
+];
+
+fn dump_tile(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture, x: u32, y: u32, tile: u8, table: u8, pal: u8) {
     let table: u8 = match table {
 	    0 => 0,
 	    _ => 1,
@@ -36,10 +50,10 @@ fn dump_tile(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture, x: u32, y: u32
 	    for (b, b2) in (0..=7).rev().enumerate() {
 		let c = ((p0 >> b2) & 1) | (((p1 >> b2) & 1) << 1);
 		let px: u32 = match c {
-		    0 => 0x000000,
-		    1 => 0x333333,
-		    2 => 0x888888,
-		    _ => 0xdddddd,
+		    0 => SYS_PALETTE[ppu.palette[0] as usize],
+		    1 => SYS_PALETTE[ppu.palette[1 + (pal as usize) * 4] as usize],
+		    2 => SYS_PALETTE[ppu.palette[2 + (pal as usize) * 4] as usize],
+		    _ => SYS_PALETTE[ppu.palette[3 + (pal as usize) * 4] as usize],
 		};
 		let offset = (y as usize + i) * pitch + (x as usize + b) * 3;
 		buf[offset] = (px >> 16) as u8;
@@ -53,7 +67,7 @@ fn dump_tile(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture, x: u32, y: u32
 fn dump_chr(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
     for x in 0..32 {
 	for y in 0..16 {
-	    dump_tile(ppu, tex, x * 8, y * 8, (y as u8 * 16) + (x as u8 % 16), (x >= 16) as u8);
+	    dump_tile(ppu, tex, x * 8, y * 8, (y as u8 * 16) + (x as u8 % 16), (x >= 16) as u8, 0);
 	}
     }
 }
@@ -66,13 +80,22 @@ fn dump_nt(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
 	    let tile = ppu.read_byte(index);
 	    let mut tile_x = j % 32;
 	    let mut tile_y = j / 32;
+	    let attr_index = (tile_y / 4) * 8 + (tile_x / 4);
+	    let attr_byte = ppu.read_byte(base + 0x3c0 + attr_index);
+	    let pal_num = match (tile_x % 4 / 2, tile_y % 4 / 2) {
+		(0, 0) => attr_byte & 3,
+		(1, 0) => (attr_byte >> 2) & 3,
+		(0, 1) => (attr_byte >> 4) & 3,
+		(1, 1) => (attr_byte >> 6) & 3,
+		(_, _) => panic!("impossible math anomaly o_O"),
+	    };
 	    if i == 1 || i == 3 {
 		tile_x += 32;
 	    }
 	    if i == 2 || i == 3 {
 		tile_y += 30;
 	    }
-	    dump_tile(ppu, tex, tile_x as u32 * 8, tile_y as u32 * 8, tile, 1);
+	    dump_tile(ppu, tex, tile_x as u32 * 8, tile_y as u32 * 8, tile, 1, pal_num);
 	}
     }
 }
@@ -149,6 +172,9 @@ fn main() {
 	}
 	cpu.bus.step(cyc);
 	if cpu.nmi_left {
+	    dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
+	    chr_canv.copy(&chr_tex, None, None).unwrap();
+	    chr_canv.present();
 	    dump_nt(&mut cpu.bus.ppu, &mut nt_tex);
 	    nt_canv.copy(&nt_tex, None, None).unwrap();
 	    nt_canv.present();
