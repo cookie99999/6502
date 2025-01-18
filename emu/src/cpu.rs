@@ -129,6 +129,7 @@ pub struct Cpu {
     instr_set: &'static [Instruction; 256],
     cycles: u128,
     pub nmi_left: bool, //hack to only have to redraw nametables once per frame
+    in_nmi: bool,
 }
 
 impl Cpu {
@@ -145,6 +146,7 @@ impl Cpu {
 	    instr_set: &INSTR_SET_NMOS,
 	    cycles: 7,
 	    nmi_left: false,
+	    in_nmi: false,
 	}
     }
 
@@ -260,7 +262,6 @@ impl Cpu {
     }
 
     pub fn step(&mut self) -> u128 {
-	self.nmi_left = false;
 	let oldcycles = self.cycles;
 	if self.bus.ppu.int_pending {
 	    self.irq(false);
@@ -269,10 +270,10 @@ impl Cpu {
 	if self.bus.ppu.nmi_pending {
 	    self.irq(true);
 	    self.bus.ppu.nmi_pending = false;
-	    self.nmi_left = true;
+	    self.in_nmi = true;
 	}
 	let opcode: u8 = self.bus.read_byte(self.pc);
-	//self.disas(opcode);
+	self.disas(opcode);
 	let instr: &Instruction = &self.instr_set[opcode as usize];
 	self.cycles += instr.cycles as u128;
 
@@ -367,6 +368,10 @@ impl Cpu {
 		self.p = PSW::from_bits(self.pop_byte()).expect("oop");
 		self.p |= PSW::U;
 		self.pc = self.pop_word();
+		if self.in_nmi {
+		    self.nmi_left = true;
+		    self.in_nmi = false;
+		}
 	    },
 	    "RTS" => {
 		self.pc = self.pop_word();

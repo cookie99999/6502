@@ -179,6 +179,7 @@ fn main() {
 	    dump_nt(&mut cpu.bus.ppu, &mut nt_tex);
 	    nt_canv.copy(&nt_tex, None, None).unwrap();
 	    nt_canv.present();
+	    cpu.nmi_left = false;
 	}
 	//draw_screen(&mut cpu.bus.ppu, &mut main_tex);
 	//main_canvas.copy(&main_tex, None, None).unwrap();
