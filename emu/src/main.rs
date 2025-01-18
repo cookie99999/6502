@@ -49,11 +49,12 @@ fn dump_tile(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture, x: u32, y: u32
 	    let p1 = ppu.read_byte(p1_addr + i as u16);
 	    for (b, b2) in (0..=7).rev().enumerate() {
 		let c = ((p0 >> b2) & 1) | (((p1 >> b2) & 1) << 1);
-		let px: u32 = match c {
-		    0 => SYS_PALETTE[ppu.palette[0] as usize],
-		    1 => SYS_PALETTE[ppu.palette[1 + (pal as usize) * 4] as usize],
-		    2 => SYS_PALETTE[ppu.palette[2 + (pal as usize) * 4] as usize],
-		    _ => SYS_PALETTE[ppu.palette[3 + (pal as usize) * 4] as usize],
+		let palbase: u16 = 0x3f00 + 1 + (pal * 4) as u16;
+		let px: u32 = match c { //todo: intensity bits
+		    0 => SYS_PALETTE[ppu.read_byte(0x3f00) as usize % 64],
+		    1 => SYS_PALETTE[ppu.read_byte(palbase) as usize % 64],
+		    2 => SYS_PALETTE[ppu.read_byte(palbase + 1) as usize % 64],
+		    _ => SYS_PALETTE[ppu.read_byte(palbase + 2) as usize % 64],
 		};
 		let offset = (y as usize + i) * pitch + (x as usize + b) * 3;
 		buf[offset] = (px >> 16) as u8;

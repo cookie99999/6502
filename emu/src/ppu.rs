@@ -85,10 +85,12 @@ impl Ppu {
 	    },
 	    0x3000 ..= 0x3eff => //mirror of vram according to nesdev
 		self.vram[(addr - 0x3000) as usize] = byte,
+	    0x3f00 | 0x3f10 => //bg/sprite color 0 is shared
+		self.palette[0] = byte,
 	    PAL_START ..= PAL_END =>
-		self.palette[(addr - PAL_START) as usize % 0x20] = byte,
+		self.write_byte((addr - PAL_START) % 0x20, byte),
 	    _ =>
-		println!("ppu write {addr:04x} todo"),
+		todo!("unmatched ppu write {addr:04x}"),
 	};
     }
 
@@ -121,10 +123,12 @@ impl Ppu {
 	    },
 	    0x3000 ..= 0x3eff => //mirror of vram according to nesdev
 		self.vram[(addr - 0x3000) as usize],
+	    0x3f00 | 0x3f10 => //bg/sprite color 0 is shared
+		self.palette[0],
 	    PAL_START ..= PAL_END =>
-		self.palette[(addr - PAL_START) as usize % 0x20],
+		self.read_byte((addr - PAL_START) % 0x20),
 	    _ =>
-		0,
+		todo!("unmatched ppu read at {addr:04X}"),
 	}
     }
 
@@ -158,12 +162,14 @@ impl Ppu {
 		}
 	    },
 	    _ => //OAMDMA is handled in the cpu
-		println!("ppu reg write {addr:04x} todo"),
+		todo!("unmatched ppu reg write at {addr:04X}"),
 	};
     }
 
     pub fn read_reg(&mut self, addr: u16) -> u8 {
 	match addr {
+	    0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 => //write only registers
+		self.latch,
 	    0x2002 => { //PPUSTATUS
 		self.write_2 = false;
 		let tmp = self.ppustatus;
@@ -181,7 +187,7 @@ impl Ppu {
 		result
 	    },
 	    _ =>
-		0,
+		todo!("unmatched ppu reg read at {addr:04X}"),
 	}
     }
 
