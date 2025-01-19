@@ -10,6 +10,7 @@ enum AddrMode {
     Ind, XInd, IndY, Rel, Acc,
 }
 
+#[derive(Debug)]
 struct Instruction {
     opcode: u8,
     bytes: u8,

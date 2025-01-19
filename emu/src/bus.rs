@@ -45,7 +45,7 @@ impl Bus for NesBus {
     fn read_byte(&mut self, addr: u16) -> u8 {
 	match addr {
 	    WRAM_START ..= WRAM_END =>
-		self.wram[(addr & 0x7fff) as usize],
+		self.wram[(addr % 0x800) as usize],
 	    PPUREG_START ..= PPUREG_END =>
 		self.ppu.read_reg(addr),
 	    APUREG_START ..= APUREG_END =>
@@ -75,7 +75,7 @@ impl Bus for NesBus {
     fn write_byte(&mut self, addr: u16, data: u8) {
 	match addr {
 	    WRAM_START ..= WRAM_END =>
-		self.wram[(addr & 0x7fff) as usize] = data,
+		self.wram[(addr % 0x800) as usize] = data,
 	    PPUREG_START ..= PPUREG_END =>
 		self.ppu.write_reg(addr, data),
 	    0x4014 => { //OAMDMA
