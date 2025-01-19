@@ -35,45 +35,45 @@ const SYS_PALETTE: [u32; 64] = [
     0xA8E7F0, 0xACACAC, 0x000000, 0x000000,
 ];
 
-fn dump_tile(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture, x: u32, y: u32, tile: u8, table: u8, pal: u8) {
+fn dump_tile(ppu: &mut ppu::Ppu, fb: &mut [u8], pitch: usize, x: u32, y: u32, tile: u8, table: u8, pal: u8) {
     let table: u8 = match table {
-	    0 => 0,
-	    _ => 1,
-	};
-	let mut p0_addr: u16 = (tile as u16) << 4;
-	p0_addr |= (table as u16) << 12;
-	let p1_addr: u16 = p0_addr | (1u16 << 3);
-    tex.with_lock(None, |buf: &mut [u8], pitch: usize| {
-	for i in 0..8 {
-	    let p0 = ppu.read_byte(p0_addr + i as u16);
-	    let p1 = ppu.read_byte(p1_addr + i as u16);
-	    for (b, b2) in (0..=7).rev().enumerate() {
-		let c = ((p0 >> b2) & 1) | (((p1 >> b2) & 1) << 1);
-		let palbase: u16 = 0x3f00 + 1 + (pal * 4) as u16;
-		let px: u32 = match c { //todo: intensity bits
-		    0 => SYS_PALETTE[ppu.read_byte(0x3f00) as usize % 64],
-		    1 => SYS_PALETTE[ppu.read_byte(palbase) as usize % 64],
-		    2 => SYS_PALETTE[ppu.read_byte(palbase + 1) as usize % 64],
-		    _ => SYS_PALETTE[ppu.read_byte(palbase + 2) as usize % 64],
-		};
-		let offset = (y as usize + i) * pitch + (x as usize + b) * 3;
-		buf[offset] = (px >> 16) as u8;
-		buf[offset + 1] = (px >> 8) as u8;
-		buf[offset + 2] = px as u8;
-	    }
+	0 => 0,
+	_ => 1,
+    };
+    let mut p0_addr: u16 = (tile as u16) << 4;
+    p0_addr |= (table as u16) << 12;
+    let p1_addr: u16 = p0_addr | (1u16 << 3);
+    for i in 0..8 {
+	let p0 = ppu.read_byte(p0_addr + i as u16);
+	let p1 = ppu.read_byte(p1_addr + i as u16);
+	for (b, b2) in (0..=7).rev().enumerate() {
+	    let c = ((p0 >> b2) & 1) | (((p1 >> b2) & 1) << 1);
+	    let palbase: u16 = 0x3f00 + 1 + (pal * 4) as u16;
+	    let px: u32 = match c { //todo: intensity bits
+		0 => SYS_PALETTE[ppu.read_byte(0x3f00) as usize % 64],
+		1 => SYS_PALETTE[ppu.read_byte(palbase) as usize % 64],
+		2 => SYS_PALETTE[ppu.read_byte(palbase + 1) as usize % 64],
+		_ => SYS_PALETTE[ppu.read_byte(palbase + 2) as usize % 64],
+	    };
+	    let offset = (y as usize + i) * pitch + (x as usize + b) * 3;
+	    fb[offset] = (px >> 16) as u8;
+	    fb[offset + 1] = (px >> 8) as u8;
+	    fb[offset + 2] = px as u8;
 	}
-    }).unwrap();
+    }
 }
     
-fn dump_chr(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
+/*fn dump_chr(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
     for x in 0..32 {
 	for y in 0..16 {
 	    dump_tile(ppu, tex, x * 8, y * 8, (y as u8 * 16) + (x as u8 % 16), (x >= 16) as u8, 0);
 	}
     }
-}
+}*/
 
 fn dump_nt(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
+    let mut fb: [u8; 512*480*3] = [0;512*480*3];
+    let pitch: usize = 512 * 3;
     let base = 0x2000;
     for i in 0..4 {
 	for j in 0..0x3c0 {
@@ -96,9 +96,21 @@ fn dump_nt(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
 	    if i == 2 || i == 3 {
 		tile_y += 30;
 	    }
-	    dump_tile(ppu, tex, tile_x as u32 * 8, tile_y as u32 * 8, tile, 1, pal_num);
+	    dump_tile(ppu, &mut fb[..], pitch, tile_x as u32 * 8, tile_y as u32 * 8, tile, 1, pal_num);
 	}
     }
+
+    /*tex.with_lock(None, |buf: &mut [u8], pitch: usize| {
+	for y in 0..480 {
+	    for x in 0..512 {
+		let offset = y * pitch + x * 3;
+		buf[offset] = fb[offset];
+		buf[offset + 1] = fb[offset + 1];
+		buf[offset + 2] = fb[offset + 2];
+	    }
+	}
+}).unwrap();*/
+    tex.update(None, &fb[..], pitch).unwrap();
 }
 
 fn main() {
@@ -124,7 +136,7 @@ fn main() {
 	.create_texture_streaming(PixelFormatEnum::RGB24, 256, 240)
 	.unwrap();
 
-    let chr_win = video.window("Pattern Tables", 8 * 16 * 3 * 2, 8 * 16 * 3)
+    /*let chr_win = video.window("Pattern Tables", 8 * 16 * 3 * 2, 8 * 16 * 3)
 	.position_centered()
 	.opengl()
 	.build()
@@ -133,7 +145,7 @@ fn main() {
     let chr_tex_create = chr_canv.texture_creator();
     let mut chr_tex = chr_tex_create
 	.create_texture_streaming(PixelFormatEnum::RGB24, 8*16*2, 8*16)
-	.unwrap();
+	.unwrap();*/
 
     let nt_win = video.window("Nametables", 512, 480)
 	.position_centered()
@@ -150,10 +162,10 @@ fn main() {
 
     main_canvas.clear();
     main_canvas.present();
-    chr_canv.clear();
-    dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
-    chr_canv.copy(&chr_tex, None, None).unwrap();
-    chr_canv.present();
+    //chr_canv.clear();
+    //dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
+    //chr_canv.copy(&chr_tex, None, None).unwrap();
+    //chr_canv.present();
     nt_canv.clear();
 
     'running: loop {
@@ -173,9 +185,9 @@ fn main() {
 	}
 	cpu.bus.step(cyc);
 	if cpu.nmi_left {
-	    dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
-	    chr_canv.copy(&chr_tex, None, None).unwrap();
-	    chr_canv.present();
+	    //dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
+	    //chr_canv.copy(&chr_tex, None, None).unwrap();
+	    //chr_canv.present();
 	    dump_nt(&mut cpu.bus.ppu, &mut nt_tex);
 	    nt_canv.copy(&nt_tex, None, None).unwrap();
 	    nt_canv.present();
