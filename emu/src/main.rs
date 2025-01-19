@@ -90,7 +90,7 @@ fn dump_nt(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
 		(1, 1) => (attr_byte >> 6) & 3,
 		(_, _) => panic!("impossible math anomaly o_O"),
 	    };
-	    if i == 1 || i == 3 {
+	    if i == 1 || i == 3 { //todo: nts are on the wrong side relative to the mirroring
 		tile_x += 32;
 	    }
 	    if i == 2 || i == 3 {

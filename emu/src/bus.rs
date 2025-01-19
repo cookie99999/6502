@@ -47,7 +47,7 @@ impl Bus for NesBus {
 	    WRAM_START ..= WRAM_END =>
 		self.wram[(addr % 0x800) as usize],
 	    PPUREG_START ..= PPUREG_END =>
-		self.ppu.read_reg(addr),
+		self.ppu.read_reg(0x2000 + (addr % 8)),
 	    APUREG_START ..= APUREG_END =>
 		0, //todo
 	    PRG_START ..= PRG_END =>
@@ -77,7 +77,7 @@ impl Bus for NesBus {
 	    WRAM_START ..= WRAM_END =>
 		self.wram[(addr % 0x800) as usize] = data,
 	    PPUREG_START ..= PPUREG_END =>
-		self.ppu.write_reg(addr, data),
+		self.ppu.write_reg(0x2000 + (addr % 8), data),
 	    0x4014 => { //OAMDMA
 		let start = (data as u16) << 8;
 		for i in 0..256 {
