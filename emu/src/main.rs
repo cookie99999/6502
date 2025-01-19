@@ -6,6 +6,7 @@ use std::env;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use itertools::Either;
 
 fn draw_screen(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
     tex.with_lock(None, |buf: &mut [u8], pitch: usize| {
@@ -35,7 +36,7 @@ const SYS_PALETTE: [u32; 64] = [
     0xA8E7F0, 0xACACAC, 0x000000, 0x000000,
 ];
 
-fn dump_tile(ppu: &mut ppu::Ppu, fb: &mut [u8], pitch: usize, x: u32, y: u32, tile: u8, table: u8, pal: u8) {
+fn dump_tile(ppu: &mut ppu::Ppu, fb: &mut [u8], pitch: usize, h: usize, x: u32, y: u32, tile: u8, table: u8, pal: u8, spr: bool, vflip: bool, hflip: bool) {
     let table: u8 = match table {
 	0 => 0,
 	_ => 1,
@@ -43,33 +44,73 @@ fn dump_tile(ppu: &mut ppu::Ppu, fb: &mut [u8], pitch: usize, x: u32, y: u32, ti
     let mut p0_addr: u16 = (tile as u16) << 4;
     p0_addr |= (table as u16) << 12;
     let p1_addr: u16 = p0_addr | (1u16 << 3);
-    for i in 0..8 {
+    let y_iter = if vflip {
+	Either::Left((0..8).rev())
+    } else {
+	Either::Right(0..8)
+    };
+    for i in y_iter {
 	let p0 = ppu.read_byte(p0_addr + i as u16);
 	let p1 = ppu.read_byte(p1_addr + i as u16);
-	for (b, b2) in (0..=7).rev().enumerate() {
+	let x_iter = if hflip {
+	    Either::Left((0..=7).enumerate())
+	} else {
+	    Either::Right((0..=7).rev().enumerate())
+	};
+	for (b, b2) in x_iter {
 	    let c = ((p0 >> b2) & 1) | (((p1 >> b2) & 1) << 1);
-	    let palbase: u16 = 0x3f00 + 1 + (pal * 4) as u16;
+	    if spr && c == 0 {
+		continue; //transparent
+	    }
+	    let palbase: u16 = if spr {
+		0x3f10 + 1 + (pal * 4) as u16
+	    } else {
+		0x3f00 + 1 + (pal * 4) as u16
+	    };
 	    let px: u32 = match c { //todo: intensity bits
 		0 => SYS_PALETTE[ppu.read_byte(0x3f00) as usize % 64],
 		1 => SYS_PALETTE[ppu.read_byte(palbase) as usize % 64],
 		2 => SYS_PALETTE[ppu.read_byte(palbase + 1) as usize % 64],
 		_ => SYS_PALETTE[ppu.read_byte(palbase + 2) as usize % 64],
 	    };
-	    let offset = (y as usize + i) * pitch + (x as usize + b) * 3;
-	    fb[offset] = (px >> 16) as u8;
-	    fb[offset + 1] = (px >> 8) as u8;
-	    fb[offset + 2] = px as u8;
+	    if (x as usize + b) * 3 < pitch && (y as usize + i) < h {
+		let offset = (y as usize + i) * pitch + (x as usize + b) * 3;
+		fb[offset] = (px >> 16) as u8;
+		fb[offset + 1] = (px >> 8) as u8;
+		fb[offset + 2] = px as u8;
+	    }
 	}
     }
 }
     
-/*fn dump_chr(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
+fn dump_chr(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
+    let mut fb: [u8; 8*16*2*8*16*3] = [0;8*16*2*8*16*3];
+    let pitch: usize = 8*16*2*3;
     for x in 0..32 {
 	for y in 0..16 {
-	    dump_tile(ppu, tex, x * 8, y * 8, (y as u8 * 16) + (x as u8 % 16), (x >= 16) as u8, 0);
+	    dump_tile(ppu, &mut fb[..], pitch, 8*16, x * 8, y * 8, (y as u8 * 16) + (x as u8 % 16), (x >= 16) as u8, 0, false, false, false);
 	}
     }
-}*/
+    tex.update(None, &fb[..], pitch).unwrap();
+}
+
+fn draw_sprites(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
+    let mut fb: [u8; 256*240*3] = [0; 256*240*3];
+    let pitch: usize = 256 * 3;
+    for i in 0..64 {
+	let offs = i * 4;
+	let y = ppu.oam[offs] as u32 - 1; //sprites are delayed by one scanline
+	let x = ppu.oam[offs + 3] as u32;
+	let tile = ppu.oam[offs + 1];
+	let attr = ppu.oam[offs + 2];
+	let pal = attr & 3;
+	let priority: bool = ((attr >> 5) & 1) != 0;
+	let hflip: bool = ((attr >> 6) & 1) != 0;
+	let vflip: bool = ((attr >> 7) & 1) != 0;
+	dump_tile(ppu, &mut fb[..], pitch, 240, x, y, tile, 0, pal, true, vflip, hflip);
+    }
+    tex.update(None, &fb[..], pitch).unwrap();
+}
 
 fn dump_nt(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
     let mut fb: [u8; 512*480*3] = [0;512*480*3];
@@ -96,7 +137,7 @@ fn dump_nt(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
 	    if i == 2 || i == 3 {
 		tile_y += 30;
 	    }
-	    dump_tile(ppu, &mut fb[..], pitch, tile_x as u32 * 8, tile_y as u32 * 8, tile, 1, pal_num);
+	    dump_tile(ppu, &mut fb[..], pitch, 480, tile_x as u32 * 8, tile_y as u32 * 8, tile, 1, pal_num, false, false, false);
 	}
     }
 
@@ -136,7 +177,7 @@ fn main() {
 	.create_texture_streaming(PixelFormatEnum::RGB24, 256, 240)
 	.unwrap();
 
-    /*let chr_win = video.window("Pattern Tables", 8 * 16 * 3 * 2, 8 * 16 * 3)
+    let chr_win = video.window("Pattern Tables", 8 * 16 * 3 * 2, 8 * 16 * 3)
 	.position_centered()
 	.opengl()
 	.build()
@@ -145,7 +186,7 @@ fn main() {
     let chr_tex_create = chr_canv.texture_creator();
     let mut chr_tex = chr_tex_create
 	.create_texture_streaming(PixelFormatEnum::RGB24, 8*16*2, 8*16)
-	.unwrap();*/
+	.unwrap();
 
     let nt_win = video.window("Nametables", 512, 480)
 	.position_centered()
@@ -162,10 +203,10 @@ fn main() {
 
     main_canvas.clear();
     main_canvas.present();
-    //chr_canv.clear();
+    chr_canv.clear();
     //dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
     //chr_canv.copy(&chr_tex, None, None).unwrap();
-    //chr_canv.present();
+    chr_canv.present();
     nt_canv.clear();
 
     'running: loop {
@@ -185,16 +226,16 @@ fn main() {
 	}
 	cpu.bus.step(cyc);
 	if cpu.nmi_left {
-	    //dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
-	    //chr_canv.copy(&chr_tex, None, None).unwrap();
-	    //chr_canv.present();
+	    dump_chr(&mut cpu.bus.ppu, &mut chr_tex);
+	    chr_canv.copy(&chr_tex, None, None).unwrap();
+	    chr_canv.present();
 	    dump_nt(&mut cpu.bus.ppu, &mut nt_tex);
 	    nt_canv.copy(&nt_tex, None, None).unwrap();
 	    nt_canv.present();
+	    draw_sprites(&mut cpu.bus.ppu, &mut main_tex);
+	    main_canvas.copy(&main_tex, None, None).unwrap();
+	    main_canvas.present();
 	    cpu.nmi_left = false;
 	}
-	//draw_screen(&mut cpu.bus.ppu, &mut main_tex);
-	//main_canvas.copy(&main_tex, None, None).unwrap();
-	//main_canvas.present();
     }
 }

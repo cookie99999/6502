@@ -274,7 +274,7 @@ impl Cpu {
 	    self.in_nmi = true;
 	}
 	let opcode: u8 = self.bus.read_byte(self.pc);
-	self.disas(opcode);
+	//self.disas(opcode);
 	let instr: &Instruction = &self.instr_set[opcode as usize];
 	self.cycles += instr.cycles as u128;
 
