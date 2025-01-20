@@ -99,7 +99,7 @@ fn draw_sprites(ppu: &mut ppu::Ppu, tex: &mut sdl2::render::Texture) {
     let pitch: usize = 256 * 3;
     for i in 0..64 {
 	let offs = i * 4;
-	let y = ppu.oam[offs] as u32 - 1; //sprites are delayed by one scanline
+	let y = (ppu.oam[offs] as u32).saturating_sub(1); //sprites are delayed by one scanline
 	let x = ppu.oam[offs + 3] as u32;
 	let tile = ppu.oam[offs + 1];
 	let attr = ppu.oam[offs + 2];

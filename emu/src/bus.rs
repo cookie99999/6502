@@ -124,7 +124,7 @@ impl NesBus {
 		println!("valid iNES"),
 	    _ => println!("invalid iNES"),
 	};
-	let prg_sz: usize = buf[4] as usize * 0x4000;
+	let mut prg_sz: usize = buf[4] as usize * 0x4000;
 	let chr_sz: usize = buf[5] as usize * 0x2000;
 	let fl6 = buf[6];
 	let fl7 = buf[7];
@@ -151,17 +151,32 @@ impl NesBus {
 	    false => 16,
 	};
 
+	if buf.len() < 0x6010 { //8k prg, basically just galaxian
+	    prg_sz = 0x2000;
+	}
 	//todo: load depending on mapper
 	for i in 0..prg_sz {
 	    self.prg[(0x8000 - PRG_START) as usize + i] = buf[i + buf_prg_start as usize];
 	}
 
+	if prg_sz <= 0x2000 {
+	    for i in 0..prg_sz {
+		self.prg[(0xa000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
+	    }
+	}
+	
 	if prg_sz <= 0x4000 {
 	    for i in 0..prg_sz {
 		self.prg[(0xc000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
 	    }
 	}
 
+	if prg_sz <= 0x2000 { //ugly bad galaxian hacks
+	    for i in 0..prg_sz {
+		self.prg[(0xe000 - PRG_START) as usize + i] = self.prg[(0x8000 - PRG_START) as usize + i];
+	    }
+	}
+	
 	let chr_start = buf_prg_start + prg_sz;
 	self.load_chr(&buf[chr_start..], chr_sz);
     }
