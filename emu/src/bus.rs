@@ -114,7 +114,7 @@ impl NesBus {
 
     fn load_chr(&mut self, buf: &[u8], size: usize) {
 	for i in 0..size {
-	    self.ppu.write_byte(i as u16, buf[i]);
+	    self.ppu.chr[i] = buf[i];
 	}
     }
     

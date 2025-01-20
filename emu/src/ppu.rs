@@ -59,7 +59,8 @@ impl Ppu {
     pub fn write_byte(&mut self, addr: u16, byte: u8) {
 	match addr {
 	    CHR_START ..= CHR_END => //todo: only allow if chr ram
-		self.chr[addr as usize] = byte,
+	    //self.chr[addr as usize] = byte,
+		println!("attempted write to chr at {addr:04X}"),
 	    0x2000 ..= 0x23ff =>
 		self.vram[(addr - VRAM_START) as usize] = byte,
 	    0x2400 ..= 0x27ff => {
@@ -85,10 +86,8 @@ impl Ppu {
 	    },
 	    0x3000 ..= 0x3eff => //mirror of vram according to nesdev
 		self.vram[(addr - 0x3000) as usize] = byte,
-	    0x3f00 | 0x3f10 => //bg/sprite color 0 is shared
-		self.palette[0] = byte,
 	    PAL_START ..= PAL_END =>
-		self.write_byte((addr - PAL_START) % 0x20, byte),
+		self.write_pal(addr - PAL_START, byte),
 	    _ =>
 		todo!("unmatched ppu write {addr:04x}"),
 	};
@@ -123,10 +122,8 @@ impl Ppu {
 	    },
 	    0x3000 ..= 0x3eff => //mirror of vram according to nesdev
 		self.vram[(addr - 0x3000) as usize],
-	    0x3f00 | 0x3f10 => //bg/sprite color 0 is shared
-		self.palette[0],
 	    PAL_START ..= PAL_END =>
-		self.read_byte((addr - PAL_START) % 0x20),
+		self.read_pal(addr - PAL_START),
 	    _ =>
 		todo!("unmatched ppu read at {addr:04X}"),
 	}
@@ -138,6 +135,23 @@ impl Ppu {
 
     pub fn read_oam(&mut self, addr: usize) -> u8 {
 	self.oam[addr]
+    }
+
+    pub fn write_pal(&mut self, addr: u16, data: u8) {
+	let addr = addr % 0x20;
+	if (addr & 0xf) == 0 { //bg and sprite color 0 are shared
+	    self.palette[0] = data;
+	    return;
+	}
+	self.palette[addr as usize] = data;
+    }
+
+    pub fn read_pal(&mut self, addr: u16) -> u8 {
+	let addr = addr % 0x20;
+	if (addr & 0xf) == 0 {
+	    return self.palette[0];
+	}
+	self.palette[addr as usize]
     }
 
     pub fn write_reg(&mut self, addr: u16, byte: u8) {
