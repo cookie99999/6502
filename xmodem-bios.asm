@@ -1,5 +1,6 @@
-  .setcpu "65C02"
+  .setcpu "65816"
   .include "hardware.inc"
+  .include "bios.inc"
 
   .export putchar
   .export getchar
@@ -7,49 +8,35 @@
   .export workwh
   .export workwl
   .export reset
-
-  .macro ld_ptr addr ; puts 16 bit pointer into workw
-  lda #<addr
-  sta workwl
-  lda #>addr
-  sta workwh
-  .endmacro
   
   .segment "CODE"
-
-  ACK = $06
-  NAK = $15
-  CR = $0d
-  LF = $0a
-  ESC = $1b
-  SOH = $01
-  EOT = $04
-  CAN = $18
-  SUB = $1a
-
-  ; zp vars
-  workb = $00 ; 1 byte
-  workb2 = $01 ; 1 byte
-  workw = $02 ; 2 bytes
-  workwl = $02
-  workwh = $03
-  workw2 = $04 ; 2 bytes
-  workw2l = $04
-  workw2h = $05
-  exitflag = $06 ; 1 byte
 
   ; main ram vars
   inbuf = $0200 ; 256 bytes, line buffer
   readbuf = $0300 ; read buffer for xmodem packets
   user_start = $0400 ; start of loaded program
 
-  ; todo: jump table for bios functions
+  .macro CRLF
+  lda #CR
+  jsr putchar
+  lda #LF
+  jsr putchar
+  .endmacro
+
+  .A8
+  .I8
 reset:
-  ldx #$ff
-  txs
+  clc
+  xce
+  ACC_16
+  lda #$0100
+  tcs
+  lda #$0000
+  tcd
+  ACC_8
   jsr init
 
-  ld_ptr str_boot
+  LD_PTR str_boot
   jsr puts
 
   ; monitor line fetch
@@ -58,14 +45,13 @@ reset:
   ldx #$00
 @loop:
   jsr getchar
-  cmp #$0d ; cr
+  cmp #CR
   bne @skip
   cpx #$00
   beq @loop
   lda #$00
   sta inbuf, x ; terminate input string
-  lda #$0d
-  jsr putchar ; newline
+  CRLF
 
   ; now process line
   jsr toupper
@@ -83,7 +69,7 @@ reset:
   bra @loop
 
 @line_ovf:
-  ld_ptr str_err_line_ovf
+  LD_PTR str_err_line_ovf
   jsr puts
   bra @loop
 
@@ -209,36 +195,54 @@ do_poke: ; starts with x pointing at the :
   rts
 
 do_run:
-  lda #$0d
-  jsr putchar
-  ld_ptr user_start
-  jmp (workw) ; for now we'll just have user programs hit reset when done
+  CRLF
+  ;ld_ptr user_start
+  jmp user_start ; for now we'll just have user programs hit reset when done
 
 do_xmodem:
-  ld_ptr str_xmodem_start
+  LD_PTR str_xmodem_start
   jsr puts
+  lda #1 ; 1 indexed
+  sta workb ; block number storage
+  stz workb2 ; checksum
 @sohwait:
-  ld_ptr user_start
+  LD_PTR user_start
   lda #NAK
   jsr putchar
   jsr getchar_timeout
+  bcs @sohwait
   cmp #SOH
   bne @sohwait
   
 @get_block:
   jsr getchar ; block number
-  sta workb
+  cmp workb
+  bne @err ; block num mismatch
   jsr getchar ; negated block number
-  sta workb2
+  eor #$ff
+  cmp workb
+  bne @err ; negated block num mismatch
+  inc workb
   ldy #$00
 @loop:
   jsr getchar
   sta (workw), y
+  clc
+  adc workb2
+  sta workb2
   iny
   cpy #$80 ; 128 data bytes per packet
   bne @loop
 
-  jsr getchar ; checksum, won't bother checking for now
+  jsr getchar ; checksum
+  sta $00d0
+  cmp workb2
+  bra @chkgood ; minicom seems to do the checksum wrong
+  jsr xmodem_purge
+  lda #NAK
+  jsr putchar
+  bra @get_block
+@chkgood:
   lda #ACK
   jsr putchar
 
@@ -265,19 +269,26 @@ do_xmodem:
   lda #ACK
   jsr putchar
   jsr delay_sec
-  ld_ptr str_xmodem_finish
+  LD_PTR str_xmodem_finish
   jsr puts
   rts
 
 @err:
-  ld_ptr str_err_xmodem_recv
+  lda #CAN
+  jsr putchar
+  LD_PTR str_err_xmodem_recv
   jsr puts
+  rts
+
+xmodem_purge:
+  jsr getchar_timeout
+  bcc xmodem_purge
   rts
 
 init:
   lda #$00
   sta ACIA_STAT ;reset
-  lda #$1f ;8n1, receiver clock source is baud rate
+  lda #$1f ;8n1, 19200
   sta ACIA_CTRL
   lda #$0b ;all of that stuff turned off
   sta ACIA_CMD
@@ -288,6 +299,7 @@ init:
 
   lda #%11000000 ; set t1 interrupt
   sta VIA1_IER
+  
   rts
 
 tx_delay:
@@ -343,9 +355,11 @@ getchar_timeout:
   dey
   bne @outer
   lda #$00
+  sec
   rts
 @break:
   lda ACIA_DATA
+  clc
   rts
 
 puts: ; address in workw, zero terminated
@@ -406,10 +420,17 @@ peek: ; addr in workw, count in x
   inc workw
   dex
   bne @loop
-  lda #$0d
-  jsr putchar
+  CRLF
   rts
 
+prword:
+  ACC_16
+  jsr prbyte
+  xba
+  jsr prbyte
+  ACC_8
+  rts
+  
 prbyte: ; byte to print in a, clobbers a
   pha
   lsr
@@ -465,7 +486,7 @@ toupper: ; converts inbuf to uppercase, ignoring non letters
 asc2nyb: ; ascii in a, returned nibble is least significant part of a
   sec
   sbc #$30 ; '0' ascii
-  cmp #$0a
+  cmp #CR
   bcc @skip
   sbc #$07 ; difference between ascii '9' and 'A'
 @skip:
@@ -486,16 +507,39 @@ asc2byte: ; first nyb in a, second in workb, returned in a
   ora workb
   rts
 
-str_boot:
-  .byte "ROM kernel ready", $0d, 0
-str_xmodem_start:
-  .byte "Receiving Xmodem file...", $0d, 0
-str_xmodem_finish:
-  .byte "Successfully received Xmodem file", $0d, 0
-str_err_line_ovf:
-  .byte "ERR: Line too long", 0
-str_err_xmodem_recv:
-  .byte "ERR: Xmodem receive failure", $0d, 0
+brkvec:
+  jsr (svc_table, x)
+  rti
 
-  .segment "RESETVEC"
+svc_table:
+  .word reset
+  .word putchar
+  .word puts
+  .word getchar
+  .word prbyte
+  .word delay_sec
+
+str_boot:
+  .byte "ROM kernel ready", CR, LF, 0
+str_xmodem_start:
+  .byte "Receiving Xmodem file...", CR, LF, 0
+str_xmodem_finish:
+  .byte "Successfully received Xmodem file", CR, LF, 0
+str_err_line_ovf:
+  .byte "ERR: Line too long", CR, LF, 0
+str_err_xmodem_recv:
+  .byte "ERR: Xmodem receive failure", CR, LF, 0
+
+  .segment "RESETVEC"	
+  .word 0 ; cop 816
+  .word brkvec
+  .word 0 ; abort 816
+  .word 0 ; nmi 816
+  .word 0 ; reserved
+  .word 0 ; irq 816
+  .word 0 ; reserved
+  .word 0 ; reserved
+  .word 0 ; cop 02
+  .word 0 ; reserved
+  .word 0 ; abort 02
   .word $0000, reset, $0000
