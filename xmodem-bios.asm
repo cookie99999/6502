@@ -8,8 +8,6 @@
   .export workwh
   .export workwl
   .export reset
-  
-  .segment "CODE"
 
   ; main ram vars
   inbuf = $0200 ; 256 bytes, line buffer
@@ -22,6 +20,9 @@
   lda #LF
   jsr putchar
   .endmacro
+  
+  .segment "CODE"
+  .include "xmodem.asm"
 
   .A8
   .I8
@@ -79,7 +80,7 @@ parseline:
   ; xmodem recv command?
   cmp #'X'
   bne @next1
-  jmp do_xmodem
+  jmp xmodem_recv
 @next1:
   ; run user program command?
   cmp #'R'
@@ -198,93 +199,7 @@ do_run:
   CRLF
   ;ld_ptr user_start
   jmp user_start ; for now we'll just have user programs hit reset when done
-
-do_xmodem:
-  LD_PTR str_xmodem_start
-  jsr puts
-  lda #1 ; 1 indexed
-  sta workb ; block number storage
-  stz workb2 ; checksum
-@sohwait:
-  LD_PTR user_start
-  lda #NAK
-  jsr putchar
-  jsr getchar_timeout
-  bcs @sohwait
-  cmp #SOH
-  bne @sohwait
   
-@get_block:
-  jsr getchar ; block number
-  cmp workb
-  bne @err ; block num mismatch
-  jsr getchar ; negated block number
-  eor #$ff
-  cmp workb
-  bne @err ; negated block num mismatch
-  inc workb
-  ldy #$00
-@loop:
-  jsr getchar
-  sta (workw), y
-  clc
-  adc workb2
-  sta workb2
-  iny
-  cpy #$80 ; 128 data bytes per packet
-  bne @loop
-
-  jsr getchar ; checksum
-  sta $00d0
-  cmp workb2
-  bra @chkgood ; minicom seems to do the checksum wrong
-  jsr xmodem_purge
-  lda #NAK
-  jsr putchar
-  bra @get_block
-@chkgood:
-  lda #ACK
-  jsr putchar
-
-  jsr getchar
-  cmp #EOT
-  beq @done
-  cmp #SOH
-  bne @err
-
-  ; increment pointer
-  lda workwl
-  beq @half_inc
-  lda #$00
-  sta workwl
-  inc workwh
-  bra @skip0
-@half_inc:
-  lda #$80
-  sta workwl
-@skip0:
-  bra @get_block
-
-@done:
-  lda #ACK
-  jsr putchar
-  jsr delay_sec
-  LD_PTR str_xmodem_finish
-  jsr puts
-  rts
-
-@err:
-  lda #CAN
-  jsr putchar
-  LD_PTR str_err_xmodem_recv
-  jsr puts
-  rts
-
-xmodem_purge:
-  jsr getchar_timeout
-  bcc xmodem_purge
-  rts
-
 init:
   lda #$00
   sta ACIA_STAT ;reset
@@ -343,6 +258,8 @@ getchar:
   rts
 
 getchar_timeout:
+  phy
+  phx
   ldy #$ff
 @outer:
   ldx #$ff
@@ -355,10 +272,14 @@ getchar_timeout:
   dey
   bne @outer
   lda #$00
+  plx
+  ply
   sec
   rts
 @break:
   lda ACIA_DATA
+  plx
+  ply
   clc
   rts
 
@@ -520,7 +441,7 @@ svc_table:
   .word delay_sec
 
 str_boot:
-  .byte "ROM kernel ready", CR, LF, 0
+  .byte "Ready", CR, LF, 0
 str_xmodem_start:
   .byte "Receiving Xmodem file...", CR, LF, 0
 str_xmodem_finish:
