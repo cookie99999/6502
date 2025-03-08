@@ -5,6 +5,7 @@
   SVC_GETCHAR = 3
   SVC_PRBYTE = 4
   SVC_DELAY_SEC = 5
+  SVC_BEEP = 6
 
   .macro SVC offs
   ACC_8

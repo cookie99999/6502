@@ -37,6 +37,7 @@ reset:
   ACC_8
   jsr init
 
+  jsr beep
   LD_PTR str_boot
   jsr puts
 
@@ -158,6 +159,7 @@ parseline:
   lda workw2l
   sbc workwl
   tax
+  inx ; make the range inclusive
   bra @skipr2
 @skiprange:
   ldx #$01
@@ -196,14 +198,12 @@ do_poke: ; starts with x pointing at the :
   rts
 
 do_run:
-  CRLF
-  ;ld_ptr user_start
-  jmp user_start ; for now we'll just have user programs hit reset when done
+  jsr user_start
   
 init:
   lda #$00
   sta ACIA_STAT ;reset
-  lda #$1f ;8n1, 19200
+  lda #$1e ;8n1, 9600
   sta ACIA_CTRL
   lda #$0b ;all of that stuff turned off
   sta ACIA_CMD
@@ -214,6 +214,9 @@ init:
 
   lda #%11000000 ; set t1 interrupt
   sta VIA1_IER
+
+  lda #$ff
+  sta VIA1_DDRA ; all outputs
   
   rts
 
@@ -277,6 +280,11 @@ getchar_timeout:
   sec
   rts
 @break:
+  lda ACIA_STAT
+  and #$04
+  beq :+
+  jsr beep
+:	
   lda ACIA_DATA
   plx
   ply
@@ -345,11 +353,10 @@ peek: ; addr in workw, count in x
   rts
 
 prword:
-  ACC_16
+  xba
   jsr prbyte
   xba
   jsr prbyte
-  ACC_8
   rts
   
 prbyte: ; byte to print in a, clobbers a
@@ -428,6 +435,19 @@ asc2byte: ; first nyb in a, second in workb, returned in a
   ora workb
   rts
 
+beep:
+  phx
+  IND_16
+  ldx #$4000
+  inc VIA1_PA
+@loop:
+  dex
+  bne @loop
+  dec VIA1_PA
+  IND_8
+  plx
+  rts
+
 brkvec:
   jsr (svc_table, x)
   rti
@@ -439,6 +459,7 @@ svc_table:
   .word getchar
   .word prbyte
   .word delay_sec
+  .word beep
 
 str_boot:
   .byte "Ready", CR, LF, 0
