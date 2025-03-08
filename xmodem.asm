@@ -90,7 +90,7 @@ xmodem_recv:
   cmp blknum
   bne @err
   iny
-@chkloop:
+@chkloop: ; todo: try acc_16 before loop and only switch back after
   lda blkbuf, y
   jsr update_crc
   iny
@@ -146,11 +146,16 @@ xmodem_recv:
 
 @err:
   jsr xmodem_purge
-  lda #CAN
+  lda #CAN ; todo: does this even work in xmodem/crc
   jsr putchar
   jsr delay_sec
   LD_PTR str_err_xmodem_recv
   jsr puts
+  rts
+
+xmodem_send:
+  ; start = workw
+  ; count = workw2
   rts
 
 xmodem_purge:

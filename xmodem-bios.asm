@@ -42,6 +42,7 @@ reset:
   jsr puts
 
   ; monitor line fetch
+@ready:
   lda #']'
   jsr putchar
   ldx #$00
@@ -73,24 +74,33 @@ reset:
 @line_ovf:
   LD_PTR str_err_line_ovf
   jsr puts
-  bra @loop
+  bra @ready
 
 parseline:
+  txy ; y = line length backup, not including null
   ldx #$00
   lda inbuf, x
   ; xmodem recv command?
   cmp #'X'
-  bne @next1
-  jmp xmodem_recv
-@next1:
-  ; run user program command?
+  bne @notx
+  inx
+  lda inbuf, x
   cmp #'R'
-  bne @next2
-  jmp do_run
-@next2:
-  ; other non hex digit - error
+  bne :+
+  jmp xmodem_recv
+:
+  cmp #'S'
+  bne :+
+  jmp xmodem_send
+:
+  dex
+  lda inbuf, x
+@notx:
+  ; other non hex digit = error
   jsr isdigit
-  bcc bad_input
+  bcs :+
+  jmp bad_input
+:	
   ; inbuf must contain a hex address, get it
   pha
   inx
@@ -122,7 +132,13 @@ parseline:
   inx
   lda inbuf, x
   cmp #':'
-  beq do_poke
+  bne :+
+  jmp do_poke
+:	
+  cmp #'G'
+  bne :+
+  jmp do_run
+:	
   cmp #'.'
   bne @skiprange
   ; get second addr, max of 1 page for now
@@ -168,7 +184,38 @@ parseline:
   rts
 
 bad_input:
-  rts ; just do nothing and return to line collect, who cares
+  LD_PTR str_err_bad_input
+  jsr puts
+  rts
+
+peek: ; addr in workw, count in x
+  ; todo: should be able to use 16 bit range easily
+  lda workwh
+  xba
+  lda workwl
+  jsr prword
+  lda #':'
+  jsr putchar
+  ldy #24
+@loop:
+  lda #' '
+  jsr putchar
+  lda (workw)
+  jsr prbyte
+  inc workw
+  dey
+  bne :+
+  CRLF
+  .repeat 5
+  lda #' '
+  jsr putchar
+  .endrep
+  ldy #24
+:	
+  dex
+  bne @loop
+  CRLF
+  rts
 
 do_poke: ; starts with x pointing at the :
   inx
@@ -178,10 +225,17 @@ do_poke: ; starts with x pointing at the :
   inx
   lda inbuf, x
 @skip1:
-  ; TODO validate that input is digits
+  jsr isdigit
+  bcs :+
+  jmp bad_input
+:	
   pha
   inx
   lda inbuf, x
+  jsr isdigit
+  bcs :+
+  jmp bad_input
+:	
   sta workb
   pla
   jsr asc2byte
@@ -198,7 +252,10 @@ do_poke: ; starts with x pointing at the :
   rts
 
 do_run:
-  jsr user_start
+  ldx #$00
+  jsr (workw, x)
+  sep #$30
+  rts
   
 init:
   lda #$00
@@ -220,7 +277,7 @@ init:
   
   rts
 
-tx_delay:
+tx_delay: ; todo: get everything working at 4mhz
   phx
   ldx #$ff
 @loop:
@@ -334,24 +391,6 @@ isdigit: ; char to test in a, carry set if true
   clc
   rts
 
-peek: ; addr in workw, count in x
-  lda workwh
-  jsr prbyte
-  lda workwl
-  jsr prbyte
-  lda #':'
-  jsr putchar
-@loop:
-  lda #' '
-  jsr putchar
-  lda (workw)
-  jsr prbyte
-  inc workw
-  dex
-  bne @loop
-  CRLF
-  rts
-
 prword:
   xba
   jsr prbyte
@@ -385,6 +424,7 @@ prbyte: ; byte to print in a, clobbers a
   rts
 
 toupper: ; converts inbuf to uppercase, ignoring non letters
+  phx
   ldx #$00
 @loop:
   lda inbuf, x
@@ -408,6 +448,7 @@ toupper: ; converts inbuf to uppercase, ignoring non letters
   inx
   bra @loop
 @quit:
+  plx
   rts
 
 
@@ -422,6 +463,7 @@ asc2nyb: ; ascii in a, returned nibble is least significant part of a
   rts
 
 asc2byte: ; first nyb in a, second in workb, returned in a
+  ; todo: rewrite to use a and b
   jsr asc2nyb
   asl
   asl
@@ -469,6 +511,8 @@ str_xmodem_finish:
   .byte "Successfully received Xmodem file", CR, LF, 0
 str_err_line_ovf:
   .byte "ERR: Line too long", CR, LF, 0
+str_err_bad_input:
+  .byte "ERR: Bad input", CR, LF, 0
 str_err_xmodem_recv:
   .byte "ERR: Xmodem receive failure", CR, LF, 0
 
