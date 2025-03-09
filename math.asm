@@ -48,12 +48,10 @@ mul_16_fix:
   .I8
   jsr mul_16
   .repeat 12
-  lsr workw
+  clc
+  ror workw2
+  ror workw
   .endrep
-  lda workw2
-  and #$f000
-  ora workw
-  sta workw
   rts
 
   x0 = $e000
