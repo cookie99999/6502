@@ -1,0 +1,40 @@
+Name bank0;
+Device G22V10;
+
+Pin 1 = CS;
+Pin 3 = A15;
+Pin 4 = A14;
+Pin 5 = A13;
+Pin 6 = A12;
+Pin 7 = A11;
+Pin 8 = A10;
+Pin 9 = A9;
+Pin 10 = A8;
+Pin 11 = A7;
+Pin 13 = A6;
+Pin 14 = A5;
+Pin 15 = A4;
+
+Pin 16 = IO4CS;
+Pin 17 = IO3CS;
+Pin 18 = IO2CS;
+Pin 19 = IO1CS;
+
+Pin 20 = ROMCS;
+Pin 21 = RAMCS;
+
+FIELD Address = [A15..A4];
+
+RAM = Address:[0000..DEFF];
+ROM = Address:[E000..FFFF];
+IO1 = Address:[DF00..DF0F];
+IO2 = Address:[DF10..DF1F];
+IO3 = Address:[DF20..DF2F];
+IO4 = Address:[DF30..DF3F];
+
+!RAMCS = RAM & !CS;
+!ROMCS = ROM & !CS;
+!IO1CS = IO1 & !CS;
+!IO2CS = IO2 & !CS;
+!IO3CS = IO3 & !CS;
+!IO4CS = IO4 & !CS;
