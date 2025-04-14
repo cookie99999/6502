@@ -43,16 +43,53 @@ mul_16:	; factors in workw and workw2, low result in workw high result in workw2
   plx
   rts
 
-mul_16_fix:
+mul_16_fix: ; takes signed numbers
   .A16
   .I8
+  phx
+  phy
+  ldy workwh
+  cpy #$80
+  bcc @skipcmp ; multiply absolute values if negative, fix sign later
+  lda workw
+  eor #$ffff
+  sta workw
+@skipcmp:
+  ldx workw2h
+  cpx #$80
+  bcc @skipcmp2
+  lda workw2
+  eor #$ffff
+  sta workw2
+@skipcmp2:
   jsr mul_16
-  .repeat 12
-  clc
+  .repeat 12 ; divide by 2^12 to get back to 4.12 precision
+  lda workw2
+  cmp #$8000 ; for sign extend
   ror workw2
   ror workw
   .endrep
+  cpx #$80
+  bcs @oneneg
+  cpy #$80
+  bcs @oneneg_skip
+  ply
+  plx
+  rts ; pos x pos = pos
+@oneneg:
+  cpy #$80
+  bcs @twoneg
+@oneneg_skip:
+  lda workw
+  eor #$ffff
+  sta workw ; neg x pos = neg
+  ply
+  plx
   rts
+@twoneg:
+  ply
+  plx
+  rts ; neg x neg = pos
 
   x0 = $e000
   x1 = $1000
@@ -68,7 +105,8 @@ mul_16_fix:
   x2 = $38
   y2 = $3a
   xy = $3c
-mandel: ; todo check 16 bit lda byte order
+  
+mandel:
   ACC_16
   lda #y0
   sta cy
@@ -97,6 +135,7 @@ nloop:
   jsr mul_16_fix
   lda workw
   sta x2
+  clc
   adc y2
   cmp #$4000
   bcs @nend
@@ -107,10 +146,12 @@ nloop:
   jsr mul_16_fix
   lda workw
   sta xy
+  clc
   adc xy
   adc cy
   sta yv
   lda x2
+  sec
   sbc y2
   adc cx
   sta xv
@@ -120,26 +161,29 @@ nloop:
 @nend:
   ACC_8
   lda chartab, x
-  phx
   SVC SVC_PUTCHAR
-  plx
   ACC_16
   lda cx
+  clc
   adc #xstep
   sta cx
   plx
   dey
   bne xloop
   lda cy
+  clc
   adc #ystep
   sta cy
   phx
   jsr crlf
   plx
   dex
-  bne yloop
+  beq :+
+  brl yloop
+:	
   ACC_8
   rts
+  
 chartab:
   .byte '.', '.', '.', ',', ',', ',', ':', ':', ':', 'i', 'i', 'i', 'w', 'w', 'w', 'W', 'W', 'W', '#', '#', ' '
 
