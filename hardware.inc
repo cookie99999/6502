@@ -1,4 +1,4 @@
-  VIA1 = $9000
+  VIA1 = $DF00
   VIA1_PB = VIA1
   VIA1_PA = VIA1 + 1
   VIA1_DDRB = VIA1 + 2
@@ -16,7 +16,7 @@
   VIA1_IER = VIA1 + 14
   VIA1_PA_NO_HS = VIA1 + 15
   
-  VIA2 = $8800
+  VIA2 = $DF10
   VIA2_PB = VIA2
   VIA2_PA = VIA2 + 1
   VIA2_DDRB = VIA2 + 2
@@ -34,7 +34,7 @@
   VIA2_IER = VIA2 + 14
   VIA2_PA_NO_HS = VIA2 + 15
   
-  ACIA = $8400
+  ACIA = $DF20
   ACIA_DATA = $8400
   ACIA_STAT = $8401
   ACIA_CMD = $8402
