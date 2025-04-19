@@ -8,7 +8,6 @@ Pin [3..10] = [B7..0];
 Pin 14 = GAL2CS;
 Pin 15 = WE;
 Pin 16 = OE;
-Pin 17 = RAMCS;
 
 FIELD Bank = [B7..0];
 
@@ -17,5 +16,4 @@ HIRAM = Bank:[1..255];
 
 !WE = PH2 & !RW;
 !OE = PH2 & RW;
-!RAMCS = HIRAM;
 !GAL2CS = BZERO;
