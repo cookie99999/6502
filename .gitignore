@@ -10,5 +10,6 @@
 *.nes
 *.log
 *.sym
-emu6502
-emu/target/
+*.lck
+*.bak
+kicad/816-v2/816-v2-backups
