@@ -1,9 +1,0 @@
-[package]
-name = "emu6502"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-bitflags="2.6.0"
-sdl2="0.37.0"
-itertools="0.14.0"
