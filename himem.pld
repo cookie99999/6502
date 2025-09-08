@@ -5,6 +5,12 @@ Pin 1 = PH2;
 Pin 2 = RW;
 Pin [3..10] = [B7..0];
 
+Pin 11 = IRQ1;
+Pin 13 = IRQ2;
+Pin 17 = IRQ3;
+Pin 18 = IRQ4;
+Pin 19 = IRQB;
+
 Pin 14 = GAL2CS;
 Pin 15 = WE;
 Pin 16 = OE;
@@ -17,3 +23,5 @@ HIRAM = Bank:[1..255];
 !WE = PH2 & !RW;
 !OE = PH2 & RW;
 !GAL2CS = BZERO;
+
+!IRQB = !IRQ1 # !IRQ2 # !IRQ3 # !IRQ4;
