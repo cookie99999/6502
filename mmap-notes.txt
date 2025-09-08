@@ -1,13 +1,6 @@
-0000-7fff 32k ram
-8000-9fff 8k io
-a000-dfff unmapped, 16k wasted
-e000-ffff 8k rom
-
-9000-900f via1 mirrored every 16 bytes until 9fff
-8800-880f via2 mirrored every 16 bytes until 8fff
-9800-9fff both selected: bad, don't do it
-
-new map: a10 + /iocs selects 6551
-8400-8403 6551, mirrored every 4 bytes until 87ff but also at 8c00-8fff and 9400-97ff and 9c00-9fff
-basically this map is only safe if you promise not to use the danger zones
-to improve it you need to put extra addr lines through the gal to decode more finely, like daryl rictors
+000000-00d7ff: ram
+00d800-00deff: unmapped
+00df00-00df3f: io space, 16 bytes each for 4 devices
+00df40-00dfff: unmapped
+00e000-00ffff: rom
+010000-ffffff: ram (currently 512k installed)
