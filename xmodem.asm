@@ -1,15 +1,23 @@
   blknum = workb
-  crc = $0008
+  crc = workw2
   blkbuf = $0300
 
   .A8
   .I8
-xmodem_recv:
+xmodem_recv: ; workw = addr to store received program at
+  sei ; polling for characters is more reliable than the irq+buffer idk why
+  lda workwh
+  pha
+  lda workwl
+  pha
   LD_PTR str_xmodem_start
   jsr puts
+  pla
+  sta workwl
+  pla
+  sta workwh
   lda #1 ; 1 indexed
   sta blknum ; block number storage
-  LD_PTR user_start
 @open_conn:
   lda #'C'
   jsr putchar
@@ -142,6 +150,7 @@ xmodem_recv:
   jsr delay_sec
   LD_PTR str_xmodem_finish
   jsr puts
+  cli
   rts
 
 @err:
@@ -151,6 +160,7 @@ xmodem_recv:
   jsr delay_sec
   LD_PTR str_err_xmodem_recv
   jsr puts
+  cli
   rts
 
 xmodem_send:

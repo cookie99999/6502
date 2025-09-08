@@ -5,7 +5,6 @@
   SVC_GETCHAR = 3
   SVC_PRBYTE = 4
   SVC_DELAY_SEC = 5
-  SVC_BEEP = 6
 
   .macro SVC offs
   ACC_8
@@ -16,15 +15,24 @@
   .endmacro
 
   ; zp vars
-  workb = $00 ; 1 byte
-  workb2 = $01 ; 1 byte
-  workw = $02 ; 2 bytes
-  workwl = $02
-  workwh = $03
-  workw2 = $04 ; 2 bytes
-  workw2l = $04
-  workw2h = $05
-  exitflag = $06 ; 1 byte
+  inbuf_read = $00
+  inbuf_write = $01
+  workb = $02 ; 1 byte
+  workb2 = $03 ; 1 byte
+  workw = $04 ; 2 bytes
+  workwl = $04
+  workwh = $05
+  workw2 = $06 ; 2 bytes
+  workw2l = $06
+  workw2h = $07
+  exitflag = $08 ; 1 byte
+  ; $07 reserved
+  irqvec = $0a ; 4 bytes
+  nmivec = $0e ; 4 bytes
+
+  ; main ram vars
+  inbuf = $0200 ; 256 bytes, keyboard buffer
+  linebuf = $0300 ; 256 bytes, monitor line buffer
 
   ; ascii constants
   ACK = $06
@@ -36,6 +44,7 @@
   EOT = $04
   CAN = $18
   SUB = $1a
+  BS = $08
 
   ; utility macros
   .macro ACC_16
@@ -59,10 +68,15 @@
   .endmacro
 
   .macro LD_PTR addr ; puts 16 bit pointer into workw
-  ACC_16
-  lda #addr
-  sta workw
-  ACC_8
+  lda #<addr
+  sta workwl
+  lda #>addr
+  sta workwh
   .endmacro
-
   
+  .macro CRLF
+  lda #CR
+  jsr putchar
+  lda #LF
+  jsr putchar
+  .endmacro
