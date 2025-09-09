@@ -13,3 +13,5 @@ These are the relevant files for my ongoing WDC 65C816 based homebrew computer. 
 - Add a PS/2 keyboard interface (easily done with an ATTiny and one of the VIA ports)
 - Currently in progress: use a Raspberry Pi Pico 2 as a video coprocessor to provide VGA output, as well as handling a microSD card for mass storage
 - Once all of the above are done, design and manufacture a PCB to replace my wire-wrapped protoboard
+
+I've used and modified ideas from many sources, notably Ben Eater, Garth Wilson, Daryl Rictor, Grant Seale, and many users and articles on the 6502.org forum.
