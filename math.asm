@@ -95,8 +95,8 @@ mul_16_fix: ; takes signed numbers
   x1 = $1000
   y0 = $f000
   y1 = $1000
-  xstep = $0099
-  ystep = $0147
+  xstep = $0013
+  ystep = $0011
 
   cx = $30
   cy = $32
@@ -110,17 +110,20 @@ mandel:
   ACC_16
   lda #y0
   sta cy
-  ldx #25
+  IND_16
+  ldx #480
 yloop:
   lda #x0
   sta cx
-  ldy #80
+  ldy #640
 xloop:
   lda cx
   sta xv
   lda cy
   sta yv
   phx
+  phy
+  IND_8
   ldx #0
 nloop:
   lda yv
@@ -161,37 +164,65 @@ nloop:
 @nend:
   ACC_8
   lda chartab, x
-  SVC SVC_PUTCHAR
+  sta $44
   ACC_16
   lda cx
   clc
   adc #xstep
   sta cx
+  IND_16
+  ply
   plx
+  ACC_8
+  stx $42
+  ;stz $43
+  sty $40
+  ;stz $41
+  jsr put_pixel
+  ACC_16
   dey
   bne xloop
   lda cy
   clc
   adc #ystep
   sta cy
-  phx
-  jsr crlf
-  plx
   dex
   beq :+
   brl yloop
 :	
   ACC_8
+  IND_8
   rts
   
 chartab:
-  .byte '.', '.', '.', ',', ',', ',', ':', ':', ':', 'i', 'i', 'i', 'w', 'w', 'w', 'W', 'W', 'W', '#', '#', ' '
+  .byte 7, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 2, 3, 4, 5, 6, 7, 0
 
+put_pixel: ; at $40: xlo xhi ylo yhi color
+  lda #0
+  sta $df30
+  lda $40
+  sta $df30
+  lda $41
+  sta $df30
+  lda $42
+  sta $df30
+  lda $43
+  sta $df30
+  lda $44
+  sta $df30
+  rts
+
+pico_write:
+  sta $df30
+  nop
+  nop
+  rts
+  
 crlf:
   ACC_8
-  lda #CR
-  SVC SVC_PUTCHAR
+  ;lda #CR
+  ;SVC SVC_PUTCHAR
   lda #LF
-  SVC SVC_PUTCHAR
+  sta $df30
   ACC_16
   rts

@@ -1,0 +1,29 @@
+.program dbus
+  start:
+  wait 1 gpio 1 ; CSB deasserted from last access
+  wait 0 gpio 1 ; csb asserted
+  jmp pin start ; only respond to writes
+  write:
+  wait 1 gpio 21 [11] ; ph2 high, data should be valid
+  in pins 8
+  irq wait 0
+
+% c-sdk {
+static inline void dbus_program_init(PIO pio, uint sm, uint offset, uint pin) {
+  pio_sm_config c = dbus_program_get_default_config(offset);
+  //sm_config_set_set_pins(&c, pin, 8);
+  sm_config_set_in_pins(&c, pin);
+  pio_sm_set_consecutive_pindirs(pio, sm, pin, 8, false); //dbus pins input
+  pio_gpio_init(pio, pin);
+  pio_gpio_init(pio, pin + 1);
+  pio_gpio_init(pio, pin + 2);
+  pio_gpio_init(pio, pin + 3);
+  pio_gpio_init(pio, pin + 4);
+  pio_gpio_init(pio, pin + 5);
+  pio_gpio_init(pio, pin + 6);
+  pio_gpio_init(pio, pin + 7);
+  sm_config_set_in_shift(&c, true, true, 8); //autopush to right at 8 bits
+  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+  pio_sm_init(pio, sm, offset, &c);
+}
+%}
