@@ -20,7 +20,7 @@ xmodem_recv: ; workw = addr to store received program at
   sta blknum ; block number storage
 @open_conn:
   lda #'C'
-  jsr putchar
+  jsr putchar_serial
   jsr getchar_timeout
   bcs @open_conn
   cmp #SOH
@@ -141,12 +141,12 @@ xmodem_recv: ; workw = addr to store received program at
   inc blknum
   
   lda #ACK
-  jsr putchar
+  jsr putchar_serial
   brl @get_block
 
 @done:
   lda #ACK
-  jsr putchar
+  jsr putchar_serial
   jsr delay_sec
   LD_PTR str_xmodem_finish
   jsr puts
@@ -156,16 +156,87 @@ xmodem_recv: ; workw = addr to store received program at
 @err:
   jsr xmodem_purge
   lda #CAN ; todo: does this even work in xmodem/crc
-  jsr putchar
+  jsr putchar_serial
   jsr delay_sec
   LD_PTR str_err_xmodem_recv
   jsr puts
   cli
   rts
 
-xmodem_send:
+xmodem_send: ; going to be broken until i switch to argument stack
   ; start = workw
   ; count = workw2
+  csum = workb2
+
+  sei
+  lda workwh
+  pha
+  lda workwl
+  pha
+  LD_PTR str_begin_transfer
+  jsr puts
+  pla
+  sta workwl
+  pla
+  sta workwh
+  lda #1
+  sta blknum
+@start:
+  jsr getchar_old_serial
+  cmp #NAK
+  bne @start
+
+@retry:
+  lda #SOH
+  jsr putchar_serial
+  lda blknum
+  jsr putchar_serial
+  eor #$ff ; inverted block num
+  jsr putchar_serial
+  stz csum
+  ldy #0
+  clc
+@block_loop:
+  lda (workw), y
+  jsr putchar_serial
+  adc csum
+  sta csum
+  iny
+  cpy #128
+  bne @block_loop
+  
+  lda csum
+  jsr putchar_serial
+  
+  jsr getchar_old_serial
+  cmp #CAN
+  beq @quit
+  cmp #ACK
+  bne @retry
+
+  inc blknum
+  ACC_16
+  lda #$0080
+  clc
+  adc workw
+  sta workw
+  ACC_8
+  dec workw2l
+  bne @retry
+  
+@retry_eot:	
+  lda #EOT
+  jsr putchar_serial
+  jsr getchar_old_serial
+  cmp #CAN
+  beq @quit
+  cmp #ACK
+  bne @retry_eot
+
+@quit:
+  LD_PTR str_finish_transfer
+  jsr puts
+  cli
   rts
 
 xmodem_purge:
@@ -177,7 +248,7 @@ retry_blk:
   ;inc errcount
   jsr xmodem_purge
   lda #NAK
-  jsr putchar
+  jsr putchar_serial
   rts
 
 update_crc:	
@@ -204,3 +275,8 @@ update_crc:
   sta crc
   ACC_8
   rts
+
+str_begin_transfer:
+  .byte "Waiting for receiver...", CR, LF, 0
+str_finish_transfer:
+  .byte "File transmission complete", CR, LF, 0

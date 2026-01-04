@@ -5,7 +5,9 @@
   MHZ_MULT = 2 ; current installed clock speed
 
   .export putchar
+  .export putchar_serial
   .export getchar
+  .export getchar_old_serial
   .export puts
   .export reset
   
@@ -21,9 +23,9 @@ init:
   sta nmivec ; user can add a jmp or jml to their own
   lda #$4c
   sta irqvec
-  lda #<serial_irq
+  lda #<irq_handler
   sta irqvec + 1
-  lda #>serial_irq
+  lda #>irq_handler
   sta irqvec + 2
 
   sta inbuf_read
@@ -33,24 +35,21 @@ init:
   sta ACIA_STAT ;reset
   lda #$1e ;8n1, 9600
   sta ACIA_CTRL
-  lda #$09 ; dtrb low rx irq enabled rtsb low no parity normal echo mode
+  lda #$0b ; dtrb low rx irq disabled rtsb low no parity normal echo mode
   sta ACIA_CMD
 
   lda VIA1_ACR
   and #%00111111 ; one shot pb7 disabled
   sta VIA1_ACR
 
-  lda #%11000000 ; set t1 interrupt
-  sta VIA1_IER
+  ;lda #%11000000 ; set t1 interrupt
+  ;sta VIA1_IER
 
-  lda #$ff
-  sta VIA1_DDRA ; all outputs
-
-  lda #$ff
-  sta $8000
-  lda #$00
-  lda $8000
-  sta VIA1_PA
+  stz VIA1_DDRA ; all inputs
+  lda #%00001000
+  sta VIA1_PCR ; ca2 handshake output, ca1 negative edge triggered
+  lda #$82
+  sta VIA1_IER ; enable ca1 interrupts
   
   rts
   
@@ -338,9 +337,13 @@ getaddr: ; get 2 or 4 digit addr from linebuf[x] and put it in workw
   ;  Text manipulation/Output procedures
   ;---------------------------------------
 
-putchar:
+putchar_serial:
   sta ACIA_DATA
   jsr tx_delay
+  rts
+
+putchar:
+  sta VGA_DATA
   rts
 
 puts: ; address in workw, zero terminated
@@ -446,10 +449,10 @@ isdigit: ; char to test in a, carry set if true
   ;  Input procedures
   ;---------------------------------------
 
-getchar_old:
+getchar_old_serial:
   lda ACIA_STAT
   and #$08
-  beq getchar_old
+  beq getchar_old_serial
   lda ACIA_DATA
   rts
 
@@ -532,19 +535,23 @@ delay_sec:
   plx
   rts
 
-serial_irq:
+irq_handler:
   pha
   phx
-  lda ACIA_STAT
-  and #$80
-  beq @quit
-  lda ACIA_STAT
-  and #$08
-  beq @quit ; not interrupted due to rx
-  lda ACIA_DATA
+  lda VIA1_IFR
+  and #$02
+  beq @via_quit
+  ; data ready from keyboard
+  lda #$02
+  lda VIA1_PA
+  beq @quit ; 0 = no data
   ldx inbuf_write
   sta inbuf, x
   inc inbuf_write
+  bra @quit
+@via_quit:
+  lda VIA1_IFR
+  sta VIA1_IFR
 @quit:
   plx
   pla
