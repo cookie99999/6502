@@ -29,6 +29,10 @@
   ; $07 reserved
   irqvec = $0a ; 4 bytes
   nmivec = $0e ; 4 bytes
+  jifs = $0f ; clock variables
+  secs = $10
+  mins = $11
+  hrs = $12
 
   ; main ram vars
   inbuf = $0200 ; 256 bytes, keyboard buffer

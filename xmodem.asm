@@ -5,7 +5,6 @@
   .A8
   .I8
 xmodem_recv: ; workw = addr to store received program at
-  sei ; polling for characters is more reliable than the irq+buffer idk why
   lda workwh
   pha
   lda workwl
@@ -236,7 +235,6 @@ xmodem_send: ; going to be broken until i switch to argument stack
 @quit:
   LD_PTR str_finish_transfer
   jsr puts
-  cli
   rts
 
 xmodem_purge:

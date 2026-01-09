@@ -2,10 +2,12 @@
   .include "hardware.inc"
   .include "bios.inc"
 
-  MHZ_MULT = 2 ; current installed clock speed
+  MHZ_MULT = 4 ; current installed clock speed
+  JIF_COUNT = 9999 * MHZ_MULT ; 100hz counter
 
   .export putchar
   .export putchar_serial
+  .export prbyte
   .export getchar
   .export getchar_old_serial
   .export puts
@@ -38,12 +40,15 @@ init:
   lda #$0b ; dtrb low rx irq disabled rtsb low no parity normal echo mode
   sta ACIA_CMD
 
-  lda VIA1_ACR
-  and #%00111111 ; one shot pb7 disabled
-  sta VIA1_ACR
+  stz jifs
+  stz secs
+  stz mins
+  stz hrs
 
-  ;lda #%11000000 ; set t1 interrupt
-  ;sta VIA1_IER
+  lda #%11000000
+  sta VIA1_IER ; enable t1 interrupts
+  lda #$43
+  sta VIA1_ACR ; t1 continuous pb7 off
 
   stz VIA1_DDRA ; all inputs
   lda #%00001000
@@ -64,6 +69,10 @@ reset:
   ACC_8
   jsr init
   cli
+  lda #<JIF_COUNT
+  sta VIA1_T1C_L
+  lda #>JIF_COUNT
+  sta VIA1_T1C_H
 
   LD_PTR str_boot
   jsr puts
@@ -536,8 +545,40 @@ delay_sec:
   rts
 
 irq_handler:
+  ACC_16
+  IND_16
   pha
   phx
+  phy
+  IND_8
+  ACC_8
+  lda VIA1_IFR
+  and #$40
+  beq @not_timer
+  bit VIA1_T1C_L
+  inc jifs
+  lda jifs
+  cmp #100
+  bne @quit
+  stz jifs
+  inc secs
+  lda secs
+  cmp #60
+  bne @quit
+  stz secs
+  inc mins
+  lda mins
+  cmp #60
+  bne @quit
+  stz mins
+  inc hrs
+  lda hrs
+  cmp #24
+  bne @quit
+  stz hrs
+  bra @quit
+  
+@not_timer:
   lda VIA1_IFR
   and #$02
   beq @via_quit
@@ -549,10 +590,14 @@ irq_handler:
   sta inbuf, x
   inc inbuf_write
   bra @quit
+  
 @via_quit:
   lda VIA1_IFR
   sta VIA1_IFR
 @quit:
+  ACC_16
+  IND_16
+  ply
   plx
   pla
   rti
