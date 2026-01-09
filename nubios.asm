@@ -106,7 +106,7 @@ parseline:
   bcc @default_load
   jsr getaddr
   bra :+
-@default_load:
+@default_load: ; receive files at 0400 if not otherwise specified
   lda #$04
   sta workwh
   stz workwl
@@ -127,6 +127,9 @@ parseline:
 :	
   ; linebuf must contain a hex address, get it
   jsr getaddr
+  bcs :+
+  jmp bad_input
+:	
   inx
   lda linebuf, x
   cmp #':'
@@ -139,6 +142,7 @@ parseline:
 :	
   cmp #'.'
   bne @skiprange
+  ; TODO refactor this into another getaddr call
   ; get second addr, max of 1 page for now
   inx
   lda linebuf, x
@@ -157,8 +161,7 @@ parseline:
   dex
   lda workw2h
   sta workw2l
-  lda #$00
-  sta workw2h
+  stz workw2h
   bra @skips2
 @shortskip2:
   pha
@@ -179,6 +182,7 @@ parseline:
   ldx #$01
 @skipr2:
   jsr peek
+@quit:
   rts
 
 bad_input:
@@ -227,7 +231,7 @@ do_poke: ; starts with x pointing at the :
   bcs :+
   jmp bad_input
 :	
-  pha
+  xba
   inx
   lda linebuf, x
   jsr isdigit
@@ -235,7 +239,7 @@ do_poke: ; starts with x pointing at the :
   jmp bad_input
 :	
   sta workb
-  pla
+  xba
   jsr asc2byte
   sta (workw)
   inx
@@ -273,6 +277,10 @@ readline: ; return line length in x, carry set on error
   clc
   rts
 @skip:
+  cmp #$1f
+  bcc @loop
+  cmp #$7f
+  bcs @loop ; ignore unprintable characters
   sta linebuf, x
   jsr putchar ; echo typed char
   inx
@@ -313,11 +321,14 @@ toupper: ; converts linebuf to uppercase, ignoring non letters
   rts
 
 getaddr: ; get 2 or 4 digit addr from linebuf[x] and put it in workw
+  ; carry set = ok, carry clear = err
   xba ; first digit should already be in a
-  inx
+  inx ; parseline will only allow a digit through so no need to check
   lda linebuf, x
   sta workb
   xba
+  jsr isdigit
+  bcc @err ; bad char in 2nd digit
   jsr asc2byte
   sta workwh
   inx
@@ -335,11 +346,19 @@ getaddr: ; get 2 or 4 digit addr from linebuf[x] and put it in workw
   xba
   inx
   lda linebuf, x
+  jsr isdigit
+  bcc @err ; only 3 digits typed
   sta workb
   xba
+  jsr isdigit
+  bcc @err ; bad char in the middle
   jsr asc2byte
   sta workwl
 @skip3:
+  sec
+  rts
+@err:
+  clc
   rts
 
   ;---------------------------------------
@@ -351,7 +370,7 @@ putchar_serial:
   jsr tx_delay
   rts
 
-putchar:
+putchar: ; TODO maybe make it a macro since it's just 1 instruction
   sta VGA_DATA
   rts
 
@@ -622,16 +641,10 @@ svc_table:
 
 str_boot:
   .byte "Ready", CR, LF, 0
-str_xmodem_start:
-  .byte "Receiving Xmodem file...", CR, LF, 0
-str_xmodem_finish:
-  .byte "Successfully received Xmodem file", CR, LF, 0
 str_err_line_ovf:
   .byte "ERR: Line too long", CR, LF, 0
 str_err_bad_input:
   .byte "ERR: Bad input", CR, LF, 0
-str_err_xmodem_recv:
-  .byte "ERR: Xmodem receive failure", CR, LF, 0
 
   .segment "RESETVEC"	
   .word 0 ; cop 816

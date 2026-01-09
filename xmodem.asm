@@ -274,6 +274,12 @@ update_crc:
   ACC_8
   rts
 
+str_xmodem_start:
+  .byte "Receiving Xmodem file...", CR, LF, 0
+str_xmodem_finish:
+  .byte "Successfully received Xmodem file", CR, LF, 0
+str_err_xmodem_recv:
+  .byte "ERR: Xmodem receive failure", CR, LF, 0
 str_begin_transfer:
   .byte "Waiting for receiver...", CR, LF, 0
 str_finish_transfer:
