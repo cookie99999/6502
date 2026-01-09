@@ -21,4 +21,4 @@ pico_enable_stdio_uart(montest 0)
 
 pico_add_extra_outputs(montest)
 
-target_link_libraries(montest pico_stdlib hardware_spi hardware_pio hardware_dma hardware_adc hardware_irq)
+target_link_libraries(montest pico_stdlib hardware_pio hardware_dma hardware_irq)

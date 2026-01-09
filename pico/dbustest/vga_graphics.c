@@ -549,6 +549,11 @@ void draw_char_cursor(uint8_t c){
       cursor_x = 0;
     }
   }
+  if (cursor_y >= _height) {
+    memmove(framebuf, framebuf + ((_width / 2) * 8), TXCOUNT - ((_width / 2) * 8));
+    fill_rect(0, _height - 8, _width, 8, textbgcolor);
+    cursor_y -= textsize * 8;
+  }
 }
 
 inline void write_string(char* str){

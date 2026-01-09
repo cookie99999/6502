@@ -38,6 +38,24 @@ static uint dbus_sm;
 static uint dbus_offset;
 static uint dbus_pio_irq;
 
+volatile static bool cursor_state = false;
+volatile struct repeating_timer timer;
+extern char textcolor;
+extern char textbgcolor;
+extern unsigned short cursor_x;
+extern unsigned short cursor_y;
+
+enum states {
+  TEXT_MODE,
+  BITMAP_MODE,
+  TILEMAP_MODE
+};
+volatile static char cur_state = TEXT_MODE;
+
+enum cmds {
+  DRAW_PIXEL = 0, GO_TEXT, GO_TILE, GO_BITMAP
+};
+
 static void __time_critical_func(read_dbus)(void) {
   *dbus_wptr++ = dbus_pio->rxf[dbus_sm] >> 24;
   dbus_pio->irq = (1u << 0);
@@ -65,20 +83,54 @@ uint8_t get_dbus_byte_blocking() {
   return byte;
 }
 
+bool toggle_cursor(__unused struct repeating_timer *t) {
+  if (cursor_state) {
+    fill_rect(cursor_x, cursor_y, 6, 8, textcolor);
+  } else {
+    fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
+  }
+  cursor_state = !cursor_state;
+  return true;
+}
+
 void dbus_task(void) {
   uint8_t byte;
   if (get_dbus_byte(&byte)) {
-    switch (byte) {
-    case 0x00: //draw pixel xlo xhi ylo yhi color
-      uint16_t x = (uint16_t)get_dbus_byte_blocking();
-      x = x | ((uint16_t)get_dbus_byte_blocking() << 8);
-      uint16_t y = (uint16_t)get_dbus_byte_blocking();
-      y = y | ((uint16_t)get_dbus_byte_blocking() << 8);
-      uint8_t color = get_dbus_byte_blocking();
-      draw_pixel(x, y, color);
+    switch (cur_state) {
+    case TEXT_MODE:
+      switch (byte) {
+      case GO_BITMAP:
+	cancel_repeating_timer(&timer);
+	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
+	cur_state = BITMAP_MODE;
+	break;
+      default:
+	cancel_repeating_timer(&timer);
+	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
+	draw_char_cursor(byte);
+	add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
+	break;
+      }
+      break;
+    case BITMAP_MODE:
+      switch (byte) {
+      case DRAW_PIXEL: //draw pixel xlo xhi ylo yhi color
+	uint16_t x = (uint16_t)get_dbus_byte_blocking();
+	x = x | ((uint16_t)get_dbus_byte_blocking() << 8);
+	uint16_t y = (uint16_t)get_dbus_byte_blocking();
+	y = y | ((uint16_t)get_dbus_byte_blocking() << 8);
+	uint8_t color = get_dbus_byte_blocking();
+	draw_pixel(x, y, color);
+	break;
+      case GO_TEXT:
+	add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
+	cur_state = TEXT_MODE;
+	break;
+      default:
+	break;
+      }
       break;
     default:
-      draw_char_cursor(byte);
       break;
     }
   }
@@ -95,7 +147,6 @@ void main() {
   set_text_wrap(1);
   set_cursor(0, 0);
   set_text_color(BLACK, CYAN);
-  write_string("test\n");
 
   dbus_rptr = dbus_wptr = dbus_buf;
   dbus_pio = pio0;
@@ -114,9 +165,13 @@ void main() {
   irq_set_exclusive_handler(dbus_pio_irq, read_dbus);
   irq_set_enabled(dbus_pio_irq, true);
   pio_sm_set_enabled(dbus_pio, dbus_sm, true);
+
+  add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
   
   while (true) {
     dbus_task();
-    sleep_ms(1);
+    for (int i = 0; i < 100; i++) {
+      int j = i;
+    }
   }
 }
