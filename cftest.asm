@@ -78,6 +78,83 @@ cf_write_reg:	; reg, byte on stack (rtl)
   pla
   rts
 
+cf_busy_wait:
+  lda #CF_STAT
+  pha
+  jsr cf_read_reg
+  and #CF_STAT_BSY
+  bne cf_busy_wait
+  rts
+
+cf_drq_wait:
+  lda #CF_STAT
+  pha
+  jsr cf_read_reg
+  and #CF_STAT_DRQ
+  beq cf_drq_wait
+  rts
+
+cf_read_sector:	; 32 bit sector number, buffer ptr, count
+  @count = 9
+  @buf = 7
+  @lba = 3 ; lo-lo, lo-hi, hi-lo, hi-hi
+  ; todo probably want to save all the registers i clobber
+  lda @lba+3, s
+  ora #$e0 ; mask in other part of head reg
+  pha
+  lda #CF_LBA_27_24
+  pha
+  jsr cf_write_reg
+  lda @lba+2, s
+  pha
+  lda #CF_LBA_23_16
+  pha
+  jsr cf_write_reg
+  lda @lba+1, s
+  pha
+  lda #CF_LBA_15_8
+  pha
+  jsr cf_write_reg
+  lda @lba, s
+  pha
+  lda #CF_LBA_7_0
+  pha
+  jsr cf_write_reg
+  lda @count, s
+  pha
+  lda #CF_SEC_COUNT
+  pha
+  jsr cf_write_reg
+  pea CF_READ_SEC << 8 | CF_CMD
+  jsr cf_write_reg
+  jsr cf_drq_wait
+
+  IND_16
+  ldy #$0000
+@read_loop:
+  lda #CF_DATA
+  pha
+  jsr cf_read_reg
+  sta (@buf, s), y
+  iny
+  cpy #512
+  bne @read_loop
+  ; stack cleanup
+  ACC_16
+  tsc
+  clc
+  adc #2 ; source end: 2nd byte of return address
+  tax
+  adc #7
+  tay ; dest: top of stack frame
+  lda #1 ; copying 2 bytes (just rts address)
+  mvp #0, #0 ; mvp stops when c is below zero, so c must be size-1
+  tya
+  tcs
+  ACC_8
+  IND_8
+  rts
+
 start:	
   lda #$01 ; ca1 rising edge
   sta VIA2_PCR
@@ -86,22 +163,12 @@ start:
   stz VIA2_ACR
   lda #$ff
   sta VIA2_DDRB
-@wait_rdy:
-  lda #CF_STAT
-  pha
-  jsr cf_read_reg
-  and #CF_STAT_RDY
-  beq @wait_rdy
+  jsr cf_busy_wait
   pea $e0 << 8 | CF_HEAD ; faster way to push 2 byte constant
   jsr cf_write_reg ; set lba mode
   pea CF_INIT_PARAMS << 8 | CF_CMD
   jsr cf_write_reg
-@status_wait:
-  lda #CF_STAT
-  pha
-  jsr cf_read_reg
-  and #CF_STAT_BSY
-  bne @status_wait
+  jsr cf_busy_wait
   lda #CF_HEAD
   pha
   jsr cf_read_reg
@@ -113,12 +180,7 @@ start:
   jsr cf_write_reg ; set 8 bit mode
   pea CF_SET_FEATURE << 8 | CF_CMD
   jsr cf_write_reg
-@status_wait2:
-  lda #CF_STAT
-  pha
-  jsr cf_read_reg
-  and #CF_STAT_BSY
-  bne @status_wait2
+  jsr cf_busy_wait
   lda #CF_ERR
   pha
   jsr cf_read_reg
@@ -137,12 +199,7 @@ start:
   jsr cf_write_reg
   pea CF_IDENTIFY << 8 | CF_CMD
   jsr cf_write_reg
-@id_wait:
-  lda #CF_STAT
-  pha
-  jsr cf_read_reg
-  and #CF_STAT_DRQ
-  beq @id_wait
+  jsr cf_drq_wait
 
   IND_16
   ldx #0
@@ -174,6 +231,16 @@ start:
   jsr putchar
   lda #LF
   jsr putchar
+
+  lda #1 ; 1 sector
+  pha
+  pea sec_buf ; dest buffer
+  lda #0
+  pha
+  pha
+  pha
+  pha ; lba $00000000
+  jsr cf_read_sector
   rts
 @lba_err:
   LD_PTR str_err_lba
