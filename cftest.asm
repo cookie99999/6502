@@ -11,12 +11,19 @@
   puts = $e4d0
   putchar = $e4cc
   sec_buf = $b000
+
+  jmp start
   
-.macro CF_READ_REG reg
+cf_read_reg:
+  @reg = 3 ; reg number on stack
+  lda @reg, s
+  asl
+  asl
+  sta @reg, s ; shift it for masking in
   stz VIA2_DDRA
   lda #%01000011
   sta VIA2_PB
-  ora #(reg << 2)
+  ora @reg, s
   sta VIA2_PB
   and #%11111101
   sta VIA2_PB
@@ -25,25 +32,53 @@
   lda VIA2_PB
   ora #%01100011
   sta VIA2_PB
+  ; s
+  ; 1- a backup
+  ; 2- rts lo
+  ; 3- rts hi
+  ; 4- reg
+  ; stack cleanup
+  ; could've used mvp but for a small stack frame it's not much faster
+  lda 3, s
+  sta 4, s
+  lda 2, s
+  sta 3, s
+  lda 1, s
+  sta 2, s
+  pla ; s++
   pla
-.endmacro
+  rts
 
-.macro CF_WRITE_REG reg, byte
+cf_write_reg:	; reg, byte on stack (rtl)
+  @reg = 3
+  @byte = 4
   lda #%01000011
   sta VIA2_PB
   lda #$ff
   sta VIA2_DDRA
-  lda #byte
+  lda @byte, s
   sta VIA2_PA
+  lda @reg, s
+  asl
+  asl
+  sta @reg, s
   lda VIA2_PB
-  ora #(reg << 2)
+  ora @reg, s
   sta VIA2_PB
   and #%11111110
   sta VIA2_PB
   ora #%00000011
   sta VIA2_PB
-.endmacro
-  
+  ; stack cleanup
+  lda 2, s
+  sta 4, s
+  lda 1, s
+  sta 3, s
+  pla
+  pla
+  rts
+
+start:	
   lda #$01 ; ca1 rising edge
   sta VIA2_PCR
   lda #$7f
@@ -52,46 +87,69 @@
   lda #$ff
   sta VIA2_DDRB
 @wait_rdy:
-  CF_READ_REG CF_STAT
+  lda #CF_STAT
+  pha
+  jsr cf_read_reg
   and #CF_STAT_RDY
   beq @wait_rdy
-  CF_WRITE_REG CF_HEAD, $e0 ; set lba mode
-  CF_WRITE_REG CF_CMD, CF_INIT_PARAMS
+  pea $e0 << 8 | CF_HEAD ; faster way to push 2 byte constant
+  jsr cf_write_reg ; set lba mode
+  pea CF_INIT_PARAMS << 8 | CF_CMD
+  jsr cf_write_reg
 @status_wait:
-  CF_READ_REG CF_STAT
+  lda #CF_STAT
+  pha
+  jsr cf_read_reg
   and #CF_STAT_BSY
   bne @status_wait
-  CF_READ_REG CF_HEAD
+  lda #CF_HEAD
+  pha
+  jsr cf_read_reg
   and #$40 ; lba bit set?
   bne :+
   jmp @lba_err
-:	
-  CF_WRITE_REG CF_FEATURE, $01 ; set 8 bit mode
-  CF_WRITE_REG CF_CMD, CF_SET_FEATURE
+:
+  pea $01 << 8 | CF_FEATURE
+  jsr cf_write_reg ; set 8 bit mode
+  pea CF_SET_FEATURE << 8 | CF_CMD
+  jsr cf_write_reg
 @status_wait2:
-  CF_READ_REG CF_STAT
+  lda #CF_STAT
+  pha
+  jsr cf_read_reg
   and #CF_STAT_BSY
   bne @status_wait2
-  CF_READ_REG CF_ERR
+  lda #CF_ERR
+  pha
+  jsr cf_read_reg
   and #$04 ; abrt/invalid cmd
   beq :+
   jmp @8bit_err
 :
-  
-  CF_WRITE_REG CF_SEC_COUNT, $00
-  CF_WRITE_REG CF_LBA_7_0, $00
-  CF_WRITE_REG CF_LBA_15_8, $00
-  CF_WRITE_REG CF_LBA_23_16, $00
-  CF_WRITE_REG CF_CMD, CF_IDENTIFY
+
+  pea $00 << 8 | CF_SEC_COUNT
+  jsr cf_write_reg
+  pea $00 << 8 | CF_LBA_7_0
+  jsr cf_write_reg
+  pea $00 << 8 | CF_LBA_15_8
+  jsr cf_write_reg
+  pea $00 << 8 | CF_LBA_23_16
+  jsr cf_write_reg
+  pea CF_IDENTIFY << 8 | CF_CMD
+  jsr cf_write_reg
 @id_wait:
-  CF_READ_REG CF_STAT
+  lda #CF_STAT
+  pha
+  jsr cf_read_reg
   and #CF_STAT_DRQ
   beq @id_wait
 
   IND_16
   ldx #0
 @read_loop:
-  CF_READ_REG CF_DATA
+  lda #CF_DATA
+  pha
+  jsr cf_read_reg
   sta sec_buf, x
   inx
   cpx #512
