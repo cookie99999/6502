@@ -1,6 +1,10 @@
   .setcpu "65816"
   .segment "CODE"
   .include "bios.inc"
+  .include "hardware.inc"
+  .include "vga.inc"
+  .A8
+  .I8
 
   jsr mandel
   rts
@@ -107,6 +111,10 @@ mul_16_fix: ; takes signed numbers
   xy = $3c
   
 mandel:
+  .A8
+  .I8
+  lda #GO_BITMAP
+  sta VGA_DATA
   ACC_16
   lda #y0
   sta cy
@@ -192,37 +200,29 @@ nloop:
 :	
   ACC_8
   IND_8
+  lda #GO_TEXT
+  sta VGA_DATA
   rts
   
 chartab:
-  .byte 7, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 2, 3, 4, 5, 6, 7, 0
+  .byte 15, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 1, 2, 3, 4, 5, 0
 
 put_pixel: ; at $40: xlo xhi ylo yhi color
-  lda #0
-  sta $df30
+  lda #DRAW_PIXEL
+  sta VGA_DATA
+  nop
   lda $40
-  sta $df30
+  sta VGA_DATA
+  nop
   lda $41
-  sta $df30
+  sta VGA_DATA
+  nop
   lda $42
-  sta $df30
+  sta VGA_DATA
+  nop
   lda $43
-  sta $df30
+  sta VGA_DATA
+  nop
   lda $44
-  sta $df30
-  rts
-
-pico_write:
-  sta $df30
-  nop
-  nop
-  rts
-  
-crlf:
-  ACC_8
-  ;lda #CR
-  ;SVC SVC_PUTCHAR
-  lda #LF
-  sta $df30
-  ACC_16
+  sta VGA_DATA
   rts

@@ -25,7 +25,7 @@
 
 #define RWB 0
 #define CSB 1
-#define PH2 21
+#define PH2 26
 #define RESB 22
 #define IRQB 28
 
@@ -42,8 +42,11 @@ volatile static bool cursor_state = false;
 volatile struct repeating_timer timer;
 extern char textcolor;
 extern char textbgcolor;
+extern unsigned short textsize;
 extern unsigned short cursor_x;
 extern unsigned short cursor_y;
+#define WIDTH 640
+#define HEIGHT 480
 
 enum states {
   TEXT_MODE,
@@ -53,17 +56,18 @@ enum states {
 volatile static char cur_state = TEXT_MODE;
 
 enum cmds {
-  DRAW_PIXEL = 0, GO_TEXT, GO_TILE, GO_BITMAP
+  DRAW_PIXEL = 0, GO_TEXT, GO_TILE, GO_BITMAP, CLEAR, DRAW_TRI, RES0,
+  RES1, BACKSPACE, RES2, LF, RES3, RES4, CR
 };
 
-static void __time_critical_func(read_dbus)(void) {
+static void __not_in_flash_func(read_dbus)(void) {
   *dbus_wptr++ = dbus_pio->rxf[dbus_sm] >> 24;
   dbus_pio->irq = (1u << 0);
   if (dbus_wptr >= dbus_bufend)
     dbus_wptr = dbus_buf;
 }
 
-bool get_dbus_byte(uint8_t *byte) {
+__attribute__((optimize("O0"))) bool get_dbus_byte(uint8_t *byte) {
   if (dbus_rptr != dbus_wptr) {
     *byte = *dbus_rptr++;
     if (dbus_rptr >= dbus_bufend)
@@ -73,9 +77,10 @@ bool get_dbus_byte(uint8_t *byte) {
   return false;
 }
 
-uint8_t get_dbus_byte_blocking() {
-  while (dbus_rptr == dbus_wptr)
-    sleep_us(1);
+__attribute__((optimize("O0"))) uint8_t get_dbus_byte_blocking() {
+  while (dbus_rptr == dbus_wptr) {
+    ;
+  }
   uint8_t byte;
   byte = *dbus_rptr++;
   if (dbus_rptr >= dbus_bufend)
@@ -104,6 +109,19 @@ void dbus_task(void) {
 	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
 	cur_state = BITMAP_MODE;
 	break;
+      case CLEAR:
+	fill_rect(0, 0, 640, 480, textbgcolor);
+	cursor_x = 0;
+	cursor_y = 0;
+	break;
+      case BACKSPACE:
+	cursor_x -= textsize * 6;
+	if (cursor_x < 0) {
+	  cursor_y -= textsize * 8;
+	  cursor_x = (WIDTH - (textsize * 6));
+	}
+	fill_rect(cursor_x, cursor_y, 6 * textsize, 8 * textsize, textbgcolor);
+	break;
       default:
 	cancel_repeating_timer(&timer);
 	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
@@ -114,13 +132,39 @@ void dbus_task(void) {
       break;
     case BITMAP_MODE:
       switch (byte) {
-      case DRAW_PIXEL: //draw pixel xlo xhi ylo yhi color
+      case DRAW_PIXEL: { //draw pixel xlo xhi ylo yhi color
 	uint16_t x = (uint16_t)get_dbus_byte_blocking();
 	x = x | ((uint16_t)get_dbus_byte_blocking() << 8);
 	uint16_t y = (uint16_t)get_dbus_byte_blocking();
 	y = y | ((uint16_t)get_dbus_byte_blocking() << 8);
 	uint8_t color = get_dbus_byte_blocking();
 	draw_pixel(x, y, color);
+      }
+	break;
+      case DRAW_TRI: { //draw_tri x1[2] y1[2] x2[2] y2[2] x3[2] y3[2] color
+	uint16_t x1 = (uint16_t)get_dbus_byte_blocking();
+	x1 = x1 | ((uint16_t)get_dbus_byte_blocking() << 8);
+	uint16_t y1 = (uint16_t)get_dbus_byte_blocking();
+	y1 = y1 | ((uint16_t)get_dbus_byte_blocking() << 8);
+
+	uint16_t x2 = (uint16_t)get_dbus_byte_blocking();
+	x2 = x2 | ((uint16_t)get_dbus_byte_blocking() << 8);
+	uint16_t y2 = (uint16_t)get_dbus_byte_blocking();
+	y2 = y2 | ((uint16_t)get_dbus_byte_blocking() << 8);
+
+	uint16_t x3 = (uint16_t)get_dbus_byte_blocking();
+	x3 = x3 | ((uint16_t)get_dbus_byte_blocking() << 8);
+	uint16_t y3 = (uint16_t)get_dbus_byte_blocking();
+	y3 = y3 | ((uint16_t)get_dbus_byte_blocking() << 8);
+	uint8_t color = get_dbus_byte_blocking();
+
+	draw_tri(x1, y1, x2, y2, x3, y3, color);
+      }
+	break;
+      case CLEAR: { //clear color
+	uint8_t color = get_dbus_byte_blocking();
+	fill_rect(0, 0, 640, 480, color);
+      }
 	break;
       case GO_TEXT:
 	add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
@@ -139,7 +183,6 @@ void dbus_task(void) {
 void main() {
   set_sys_clock_khz(150000, true);
   stdio_init_all();
-  printf("start\n");
 
   init_VGA();
   fill_rect(0, 0, 640, 480, CYAN);
@@ -170,8 +213,5 @@ void main() {
   
   while (true) {
     dbus_task();
-    for (int i = 0; i < 100; i++) {
-      int j = i;
-    }
   }
 }

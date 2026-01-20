@@ -1,6 +1,8 @@
   .setcpu "65816"
   .include "hardware.inc"
   .include "bios.inc"
+  .include "vga.inc"
+  .include "cf.inc"
 
   MHZ_MULT = 4 ; current installed clock speed
   JIF_COUNT = 9999 * MHZ_MULT ; 100hz counter
@@ -62,7 +64,7 @@ reset:
   clc
   xce
   ACC_16
-  lda #$0100
+  lda #$01ff
   tcs
   lda #$0000
   tcd

@@ -1,13 +1,15 @@
 /**
  * Hunter Adams (vha3@cornell.edu)
+ * modifed for 16 colors by BRL4
  * 
  *
  * HARDWARE CONNECTIONS
  *  - GPIO 16 ---> VGA Hsync
  *  - GPIO 17 ---> VGA Vsync
- *  - GPIO 18 ---> 330 ohm resistor ---> VGA Red
+ *  - GPIO 18 ---> 470 ohm resistor ---> VGA Green 
  *  - GPIO 19 ---> 330 ohm resistor ---> VGA Green
  *  - GPIO 20 ---> 330 ohm resistor ---> VGA Blue
+ *  - GPIO 21 ---> 330 ohm resistor ---> VGA Red
  *  - RP2040 GND ---> VGA GND
  *
  * RESOURCES USED
@@ -20,13 +22,14 @@
  *    for the PIC32 written by Bruce Land and students
  *
  */
-
-
 // Give the I/O pins that we're using some names that make sense - usable in main()
-enum vga_pins {HSYNC=16, VSYNC, RED_PIN, GREEN_PIN, BLUE_PIN} ;
+enum vga_pins { HSYNC=16, VSYNC, LO_GRN, HI_GRN, BLUE_PIN, RED_PIN} ;
 
-// We can only produce 8 (3-bit) colors, so let's give them readable names - usable in main()
-enum colors {BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE} ;
+// We can only produce 16 (4-bit) colors, so let's give them readable names - usable in main()
+enum colors { BLACK, DK_GREEN, GREEN, LT_GREEN,
+            DK_BLUE, BLUE, LT_BLUE, CYAN,
+            RED, DK_ORANGE, ORANGE, YELLOW, 
+            MAGENTA, PINK, LT_PINK, WHITE} ;
 
 // VGA primitives - usable in main
 void init_VGA(void) ;
@@ -34,6 +37,7 @@ void draw_pixel(short x, short y, uint8_t color) ;
 void draw_v_line(short x, short y, short h, uint8_t color) ;
 void draw_h_line(short x, short y, short w, uint8_t color) ;
 void draw_line(short x0, short y0, short x1, short y1, uint8_t color) ;
+void draw_tri(short x1, short y1, short x2, short y2, short x3, short y3, uint8_t color);
 void draw_rect(short x, short y, short w, short h, uint8_t color);
 void drawCircle(short x0, short y0, short r, char color) ;
 void drawCircleHelper( short x0, short y0, short r, unsigned char cornername, char color) ;

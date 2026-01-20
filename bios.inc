@@ -26,7 +26,7 @@
   workw2l = $06
   workw2h = $07
   exitflag = $08 ; 1 byte
-  ; $07 reserved
+  ; $09 reserved
   irqvec = $0a ; 4 bytes
   nmivec = $0e ; 4 bytes
   jifs = $0f ; clock variables

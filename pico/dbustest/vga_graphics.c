@@ -33,10 +33,6 @@
 unsigned char framebuf[TXCOUNT];
 char *address_pointer = &framebuf[0] ;
 
-// Bit masks for drawPixel routine
-#define TOPMASK 0b11000111
-#define BOTTOMMASK 0b11111000
-
 // For drawLine
 #define swap(a, b) { short t = a; a = b; b = t; }
 
@@ -76,6 +72,9 @@ void init_VGA() {
   uint hsync_sm = 0;
   uint vsync_sm = 1;
   uint rgb_sm = 2;
+  pio_sm_claim(pio, hsync_sm);
+  pio_sm_claim(pio, vsync_sm);
+  pio_sm_claim(pio, rgb_sm);
 
   // Call the initialization functions that are defined within each PIO file.
   // Why not create these programs here? By putting the initialization function in
@@ -83,7 +82,7 @@ void init_VGA() {
   // is consolidated in one place. Here in the C, we then just import and use it.
   hsync_program_init(pio, hsync_sm, hsync_offset, HSYNC);
   vsync_program_init(pio, vsync_sm, vsync_offset, VSYNC);
-  rgb_program_init(pio, rgb_sm, rgb_offset, RED_PIN);
+  rgb_program_init(pio, rgb_sm, rgb_offset, LO_GRN);
 
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,8 +90,8 @@ void init_VGA() {
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // DMA channels - 0 sends color data, 1 reconfigures and restarts 0
-  int rgb_chan_0 = 0;
-  int rgb_chan_1 = 1;
+  int rgb_chan_0 = dma_claim_unused_channel(true);
+  int rgb_chan_1 = dma_claim_unused_channel(true);
 
   // Channel Zero (sends color data to PIO VGA machine)
   dma_channel_config c0 = dma_channel_get_default_config(rgb_chan_0);  // default configs
@@ -168,9 +167,9 @@ void draw_pixel(short x, short y, uint8_t color) {
   // of the vga data array index, or the second
   // 3 bits? Check, then mask.
   if (pixel & 1) {
-    framebuf[pixel>>1] = (framebuf[pixel>>1] & TOPMASK) | (color << 3);
+    framebuf[pixel>>1] = (framebuf[pixel>>1] & 0x0f) | (color << 4);
   } else {
-    framebuf[pixel>>1] = (framebuf[pixel>>1] & BOTTOMMASK) | color;
+    framebuf[pixel>>1] = (framebuf[pixel>>1] & 0xf0) | color;
   }
 }
 
@@ -187,7 +186,7 @@ void draw_h_line(short x, short y, short w, uint8_t color) {
   if ((x + w - 1) >= _width)
     w = _width - x - 1;
   
-  short both_color = color | (color << 3) ;
+  short both_color = color | (color << 4) ;
   // loner pixel at x -- align left with next byte boundary
   if (x & 1) {
     draw_pixel(x, y, color);
@@ -205,53 +204,25 @@ void draw_h_line(short x, short y, short w, uint8_t color) {
     memset(&framebuf[(_width / 2) * y + (x >> 1)], both_color, len) ;
 }
 
-// Bresenham's algorithm - thx wikipedia and thx Bruce!
+// replaced with rosetta code copypaste
 void draw_line(short x0, short y0, short x1, short y1, uint8_t color) {
-  /* Draw a straight line from (x0,y0) to (x1,y1) with given color
-   * Parameters:
-   *      x0: x-coordinate of starting point of line. The x-coordinate of
-   *          the top-left of the screen is 0. It increases to the right.
-   *      y0: y-coordinate of starting point of line. The y-coordinate of
-   *          the top-left of the screen is 0. It increases to the bottom.
-   *      x1: x-coordinate of ending point of line. The x-coordinate of
-   *          the top-left of the screen is 0. It increases to the right.
-   *      y1: y-coordinate of ending point of line. The y-coordinate of
-   *          the top-left of the screen is 0. It increases to the bottom.
-   *      color: 3-bit color value for line
-   */
-  short steep = abs(y1 - y0) > abs(x1 - x0);
-  if (steep) {
-    swap(x0, y0);
-    swap(x1, y1);
-  }
+  int dx = abs(x1-x0), sx = x0<x1 ? 1 : -1;
+  int dy = abs(y1-y0), sy = y0<y1 ? 1 : -1; 
+  int err = (dx>dy ? dx : -dy)/2, e2;
 
-  if (x0 > x1) {
-    swap(x0, x1);
-    swap(y0, y1);
-  }
-
-  short dx, dy;
-  dx = x1 - x0;
-  dy = abs(y1 - y0);
-
-  short err = dx / 2;
-  short ystep;
-
-  if (y0 < y1) {
-    ystep = 1;
-  } else {
-    ystep = -1;
-  }
-
-  for (; x0 <= x1; x0++) {
+  for(;;){
     draw_pixel(x0, y0, color);
-
-    err -= dy;
-    if (err < 0) {
-      y0 += ystep;
-      err += dx;
-    }
+    if (x0==x1 && y0==y1) break;
+    e2 = err;
+    if (e2 >-dx) { err -= dy; x0 += sx; }
+    if (e2 < dy) { err += dx; y0 += sy; }
   }
+}
+
+void draw_tri(short x1, short y1, short x2, short y2, short x3, short y3, uint8_t color) {
+  draw_line(x1, y1, x2, y2, color);
+  draw_line(x2, y2, x3, y3, color);
+  draw_line(x3, y3, x1, y1, color);
 }
 
 // Draw a rectangle
@@ -318,123 +289,6 @@ void drawCircle(short x0, short y0, short r, char color) {
   }
 }
 
-void drawCircleHelper( short x0, short y0, short r, unsigned char cornername, char color) {
-  // Helper function for drawing circles and circular objects
-  short f     = 1 - r;
-  short ddF_x = 1;
-  short ddF_y = -2 * r;
-  short x     = 0;
-  short y     = r;
-
-  while (x<y) {
-    if (f >= 0) {
-      y--;
-      ddF_y += 2;
-      f     += ddF_y;
-    }
-    x++;
-    ddF_x += 2;
-    f     += ddF_x;
-    if (cornername & 0x4) {
-      draw_pixel(x0 + x, y0 + y, color);
-      draw_pixel(x0 + y, y0 + x, color);
-    }
-    if (cornername & 0x2) {
-      draw_pixel(x0 + x, y0 - y, color);
-      draw_pixel(x0 + y, y0 - x, color);
-    }
-    if (cornername & 0x8) {
-      draw_pixel(x0 - y, y0 + x, color);
-      draw_pixel(x0 - x, y0 + y, color);
-    }
-    if (cornername & 0x1) {
-      draw_pixel(x0 - y, y0 - x, color);
-      draw_pixel(x0 - x, y0 - y, color);
-    }
-  }
-}
-
-void fillCircle(short x0, short y0, short r, char color) {
-  /* Draw a filled circle with center (x0,y0) and radius r, with given color
-   * Parameters:
-   *      x0: x-coordinate of center of circle. The top-left of the screen
-   *          has x-coordinate 0 and increases to the right
-   *      y0: y-coordinate of center of circle. The top-left of the screen
-   *          has y-coordinate 0 and increases to the bottom
-   *      r:  radius of circle
-   *      color: 16-bit color value for the circle
-   * Returns: Nothing
-   */
-  draw_v_line(x0, y0-r, 2*r+1, color);
-  fillCircleHelper(x0, y0, r, 3, 0, color);
-}
-
-void fillCircleHelper(short x0, short y0, short r, unsigned char cornername, short delta, char color) {
-  // Helper function for drawing filled circles
-  short f     = 1 - r;
-  short ddF_x = 1;
-  short ddF_y = -2 * r;
-  short x     = 0;
-  short y     = r;
-
-  while (x<y) {
-    if (f >= 0) {
-      y--;
-      ddF_y += 2;
-      f     += ddF_y;
-    }
-    x++;
-    ddF_x += 2;
-    f     += ddF_x;
-
-    if (cornername & 0x1) {
-      draw_v_line(x0+x, y0-y, 2*y+1+delta, color);
-      draw_v_line(x0+y, y0-x, 2*x+1+delta, color);
-    }
-    if (cornername & 0x2) {
-      draw_v_line(x0-x, y0-y, 2*y+1+delta, color);
-      draw_v_line(x0-y, y0-x, 2*x+1+delta, color);
-    }
-  }
-}
-
-// Draw a rounded rectangle
-void drawRoundRect(short x, short y, short w, short h, short r, char color) {
-  /* Draw a rounded rectangle outline with top left vertex (x,y), width w,
-   * height h and radius of curvature r at given color
-   * Parameters:
-   *      x:  x-coordinate of top-left vertex. The x-coordinate of
-   *          the top-left of the screen is 0. It increases to the right.
-   *      y:  y-coordinate of top-left vertex. The y-coordinate of
-   *          the top-left of the screen is 0. It increases to the bottom.
-   *      w:  width of the rectangle
-   *      h:  height of the rectangle
-   *      color:  16-bit color of the rectangle outline
-   * Returns: Nothing
-   */
-  // smarter version
-  draw_h_line(x+r  , y    , w-2*r, color); // Top
-  draw_h_line(x+r  , y+h-1, w-2*r, color); // Bottom
-  draw_v_line(x    , y+r  , h-2*r, color); // Left
-  draw_v_line(x+w-1, y+r  , h-2*r, color); // Right
-  // draw four corners
-  drawCircleHelper(x+r    , y+r    , r, 1, color);
-  drawCircleHelper(x+w-r-1, y+r    , r, 2, color);
-  drawCircleHelper(x+w-r-1, y+h-r-1, r, 4, color);
-  drawCircleHelper(x+r    , y+h-r-1, r, 8, color);
-}
-
-// Fill a rounded rectangle
-void fillRoundRect(short x, short y, short w, short h, short r, char color) {
-  // smarter version
-  fill_rect(x+r, y, w-2*r, h, color);
-
-  // draw four corners
-  fillCircleHelper(x+w-r-1, y+r, r, 1, h-2*r-1, color);
-  fillCircleHelper(x+r    , y+r, r, 2, h-2*r-1, color);
-}
-
-
 // fill a rectangle
 void fill_rect(short x, short y, short w, short h, uint8_t color) {
   /* Draw a filled rectangle with starting top-left vertex (x,y),
@@ -488,7 +342,6 @@ void draw_char(short x, short y, unsigned char c, uint8_t color, uint8_t bg, uns
   }
 }
 
-
 inline void set_cursor(short x, short y) {
   /* Set cursor for text to be printed
    * Parameters:
@@ -536,9 +389,9 @@ void draw_char_cursor(uint8_t c){
     cursor_x = 0;
   } else if (c == '\r') {
     // skip em
-  } else if (c == '\t'){
+  } else if (c == '\t') {
     int new_x = cursor_x + tabspace;
-    if (new_x < _width){
+    if (new_x < _width) {
       cursor_x = new_x;
     }
   } else {

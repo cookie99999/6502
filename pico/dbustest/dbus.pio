@@ -4,7 +4,7 @@
   wait 0 gpio 1 ; csb asserted
   jmp pin start ; only respond to writes
   write:
-  wait 1 gpio 21 [11] ; ph2 high, data should be valid
+  wait 1 gpio 26 [11] ; ph2 high, data should be valid
   in pins 8
   irq wait 0
 
