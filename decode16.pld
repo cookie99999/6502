@@ -1,0 +1,66 @@
+Name decode16;
+Device f1504ispplcc44;
+
+PROPERTY ATMEL { jtag=on };
+PROPERTY ATMEL { TMS_pullup=on };
+PROPERTY ATMEL { TDI_pullup=on };
+PROPERTY ATMEL { Preassign = keep };
+
+Pin 1 = PH2;
+Pin 44 = RWB;
+Pin 2 = VDA;
+Pin 43 = B7;
+Pin 40 = B6;
+Pin 41 = B5;
+Pin 39 = B4;
+Pin 37 = B3;
+Pin 36 = B2;
+Pin 34 = B1;
+Pin 33 = B0;
+
+Pin 5 = A15;
+Pin 11 = A14;
+Pin 12 = A13;
+Pin 14 = A12;
+Pin 16 = A11;
+Pin 17 = A10;
+Pin 19 = A9;
+Pin 18 = A8;
+Pin 21 = A7;
+Pin 20 = A6;
+Pin 25 = A5;
+Pin 24 = A4;
+
+Pin 27 = WE;
+Pin 26 = OE;
+Pin 28 = ROMCS;
+Pin 29 = RAMCS;
+Pin 4 = IO1CS;
+Pin 6 = IO2CS;
+Pin 8 = IO3CS;
+Pin 31 = IO4CS;
+Pin 9 = IO5CS;
+
+Field Bank = [B7..0];
+BZERO = Bank:0;
+HIRAM = Bank:[1..255];
+
+Field Address = [A15..A4];
+RAM = Address:[0000..D7FF];
+ROM = Address:[E000..FFFF];
+IO1 = Address:[DF00..DF0F];
+IO2 = Address:[DF10..DF1F];
+IO3 = Address:[DF20..DF2F];
+IO4 = Address:[DF30..DF3F];
+IO5 = Address:[DF40..DF4F];
+
+!WE = PH2 & !RWB;
+!OE = PH2 & RWB;
+
+!RAMCS = RAM & BZERO;
+!ROMCS = ROM & BZERO;
+!IO1CS = IO1 & BZERO & VDA;
+!IO2CS = IO2 & BZERO & VDA;
+!IO3CS = IO3 & BZERO & VDA;
+!IO4CS = IO4 & BZERO & VDA;
+!IO5CS = IO5 & BZERO & VDA;
