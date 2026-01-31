@@ -146,7 +146,7 @@ xmodem_recv: ; workw = addr to store received program at
 @done:
   lda #ACK
   jsr putchar_serial
-  jsr delay_sec
+  jsr tx_delay
   LD_PTR str_xmodem_finish
   jsr puts
   cli

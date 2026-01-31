@@ -279,6 +279,13 @@ readline: ; return line length in x, carry set on error
   clc
   rts
 @skip:
+  cmp #BS
+  bne :+
+  dex ; delete character from buffer and display
+  lda #BACKSPACE
+  sta VGA_DATA
+  bra @loop
+:
   cmp #$1f
   bcc @loop
   cmp #$7f

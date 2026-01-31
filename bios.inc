@@ -33,6 +33,8 @@
   secs = $10
   mins = $11
   hrs = $12
+  retw = $14
+  retw2 = $16 ; 2 byte scratch for return values
 
   ; main ram vars
   inbuf = $0200 ; 256 bytes, keyboard buffer
@@ -49,6 +51,7 @@
   CAN = $18
   SUB = $1a
   BS = $08
+  TAB = $09
 
   ; utility macros
   .macro ACC_16
