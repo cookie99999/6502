@@ -20250,16 +20250,172 @@
 		(layer "Edge.Cuts")
 		(uuid "0df1f843-bfbb-477c-8aa3-6258c664b946")
 	)
-	(gr_text "WayWayWay"
-		(at 132.08 5.08 0)
+	(gr_text "VIA1 Port B\n---------\n+5V | PB0\nPB1 | PB2\nPB3 | PB4\nPB5 | PB6\nPB7 | GND\nCB1 | CB2"
+		(at 157.48 58.42 0)
 		(layer "F.SilkS")
-		(uuid "5c46f161-ce9b-46cc-b22d-3c3770fecc37")
+		(uuid "0bb955a4-56f4-4c2e-b3fb-7f37013092a3")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify bottom)
+		)
+	)
+	(gr_text "GND\nRX\nTX\n+5V"
+		(at 7.62 119.38 0)
+		(layer "F.SilkS")
+		(uuid "20aab8c2-33d6-48ef-bbfc-298ce7139fbe")
 		(effects
 			(font
 				(size 1 1)
 				(thickness 0.1)
 			)
 			(justify left bottom)
+		)
+	)
+	(gr_text "VIA 2"
+		(at 73.66 35.56 0)
+		(layer "F.SilkS")
+		(uuid "3358b0d6-e3e9-4d7b-86f9-2c1c1f0315f8")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "ATtiny26L"
+		(at 21.59 48.26 90)
+		(layer "F.SilkS")
+		(uuid "3568b38e-28e5-4836-894f-e6aa98d25735")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "VIA 1"
+		(at 40.64 35.56 0)
+		(layer "F.SilkS")
+		(uuid "46c1b8a5-f992-4ce0-8023-d974cf72d716")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "GND\n+5V"
+		(at 10.16 138.54 0)
+		(layer "F.SilkS")
+		(uuid "5a2bccd0-d49a-4454-a3ec-af0bcfbeaa1b")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "ACIA"
+		(at 17.78 119.38 0)
+		(layer "F.SilkS")
+		(uuid "6a3a57c3-11e0-49e3-8098-21d88128d4ee")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "'573"
+		(at 142.24 59.69 270)
+		(layer "F.SilkS")
+		(uuid "6eb7b592-44b8-4b3c-88c1-0791747c0b12")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "'245"
+		(at 104.14 60.96 270)
+		(layer "F.SilkS")
+		(uuid "7f37d890-9fd2-4f2f-a6bf-c83ee96ff902")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "W65C816S"
+		(at 116.84 38.1 0)
+		(layer "F.SilkS")
+		(uuid "8c409468-4150-49df-b4a4-a818714ff2a4")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "'74"
+		(at 142.24 33.02 270)
+		(layer "F.SilkS")
+		(uuid "949cfa8e-655c-4e6a-9038-a7ad5136312a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "RAM"
+		(at 83.82 96.52 0)
+		(layer "F.SilkS")
+		(uuid "adecaf1d-60e2-4bcc-b15d-bde96ea7ca64")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "ROM"
+		(at 53.34 96.52 0)
+		(layer "F.SilkS")
+		(uuid "ae53fc7f-fb6d-4b99-95ba-90e1aca9340e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "VIA2\n---------\n+5V | PA0\nPA1 | PA2\nPA3 | PA4\nPA5 | PA6\nPA7 | GND\nCA1 | CA2\nPB0 | PB1\nPB2 | PB3\nPB4 | PB5\nPB6 | PB7\nGND | CB1\nCB2 | GND"
+		(at 157.48 43.18 0)
+		(layer "F.SilkS")
+		(uuid "c7988e0e-b699-4bca-ac08-3181dbb302d0")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify bottom)
 		)
 	)
 	(segment
