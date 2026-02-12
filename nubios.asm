@@ -280,10 +280,13 @@ readline: ; return line length in x, carry set on error
   rts
 @skip:
   cmp #BS
-  bne :+
+  bne :++
+  cpx #0
+  beq :+ ; don't backspace if there's nothing to delete
   dex ; delete character from buffer and display
   lda #BACKSPACE
   sta VGA_DATA
+:	
   bra @loop
 :
   cmp #$1f

@@ -17,25 +17,35 @@
   ; zp vars
   inbuf_read = $00
   inbuf_write = $01
-  workb = $02 ; 1 byte
-  workb2 = $03 ; 1 byte
-  workw = $04 ; 2 bytes
-  workwl = $04
-  workwh = $05
-  workw2 = $06 ; 2 bytes
-  workw2l = $06
-  workw2h = $07
-  exitflag = $08 ; 1 byte
-  ; $09 reserved
+  exitflag = $02 ; 1 byte
+  jifs = $03 ; clock variables
+  secs = $04
+  mins = $05
+  hrs = $06
+  ; 07 reserved
+  current_dir = $08 ; 2 byte cluster num of current directory, 0=root
   irqvec = $0a ; 4 bytes
   nmivec = $0e ; 4 bytes
-  jifs = $0f ; clock variables
-  secs = $10
-  mins = $11
-  hrs = $12
-  retw = $14
-  retw2 = $16 ; 2 byte scratch for return values
-
+  ; 12-1f reserved
+  workb = $20 ; 1 byte
+  workb2 = $21 ; 1 byte
+  workw = $22 ; 2 bytes
+  workwl = $22
+  workwh = $23
+  workw2 = $24 ; 2 bytes
+  workw2l = $24
+  workw2h = $25
+  workq = $26
+  workql = $26
+  workqh = $28
+  workq2 = $2a
+  workq2l = $2a
+  workq2h = $2c
+  retw = $2e
+  retw2 = $30
+  ; 31 reserved
+  scratch = $32 ; beginning of general purpose scratch space
+  
   ; main ram vars
   inbuf = $0200 ; 256 bytes, keyboard buffer
   linebuf = $0300 ; 256 bytes, monitor line buffer
