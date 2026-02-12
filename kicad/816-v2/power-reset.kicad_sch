@@ -1731,6 +1731,16 @@
 			(embedded_fonts no)
 		)
 	)
+	(text "Alternative: TSR-1-2450 switch-mode regulator"
+		(exclude_from_sim yes)
+		(at 138.43 71.12 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "665da58f-d605-4eac-a38c-ed0c53912ac4")
+	)
 	(junction
 		(at 165.1 59.69)
 		(diameter 0)
@@ -1985,7 +1995,7 @@
 		)
 		(uuid "f7b14c2c-3f69-4846-af09-cfaa000fcad6")
 	)
-	(global_label "RESB"
+	(global_label "~{RES}"
 		(shape output)
 		(at 209.55 90.17 0)
 		(fields_autoplaced yes)
@@ -1997,7 +2007,7 @@
 		)
 		(uuid "62cfb56b-6d40-48a6-bdba-8e98bb5f92cf")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 217.4337 90.17 0)
+			(at 216.1637 90.17 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -2032,6 +2042,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -2182,6 +2193,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -2346,6 +2358,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -2566,6 +2579,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -2632,6 +2646,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -2772,6 +2787,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -3072,6 +3088,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -3144,6 +3161,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -3292,6 +3310,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Footprint" ""
@@ -3516,7 +3535,7 @@
 				)
 			)
 		)
-		(property "Value" "UA78L05ACPK"
+		(property "Value" "7805"
 			(at 137.16 54.61 0)
 			(effects
 				(font
