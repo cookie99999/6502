@@ -8,16 +8,16 @@
   .A8
   .I8
 
-  prbyte = $e523
-  puts = $e4da
-  putchar = $e4d6
+  prbyte = $e527
+  puts = $e4de
+  putchar = $e4da
   sec_buf = $b000
   fat_buf = $c000
   vol_start = $a000
   fat_start = $a004
   root_start = $a008
   data_start = $a00c
-  sec_per_cluster = $a00d
+  sec_per_cluster = $a010
 
   UTC_OFFS = <-5
 
@@ -164,6 +164,67 @@ cf_read_sector:	; 32 bit sector number, buffer ptr, count
   IND_8
   rts
 
+fat_read_params: ; vbr should be in secbuf
+  .A8
+  IND_16
+  ; fat start sector
+  ldx #FAT_BPB_RES_SECTORS
+  lda sec_buf, x
+  clc
+  adc vol_start
+  sta fat_start
+  lda sec_buf+1, x
+  adc vol_start+1
+  sta fat_start+1
+  lda #0 ; res sectors is only 2 bytes
+  adc vol_start+2
+  sta fat_start+2
+  lda #0
+  adc vol_start+3
+  sta fat_start+3
+  IND_8
+
+  ; root start sector
+  ACC_16
+  lda sec_buf + FAT_BPB_NUM_FATS
+  and #$00ff ; only one byte
+  sta workw
+  lda sec_buf + FAT_BPB_SECTORS_PER_FAT
+  sta workw2
+  jsr mul_16
+  clc
+  lda fat_start
+  adc workw
+  sta root_start
+  lda fat_start+2
+  adc workw2
+  sta root_start+2 ; root_start = fat_start + (num_fats * sec_per_fat)
+
+  ; data region start sector
+  lda sec_buf + FAT_BPB_NUM_ROOT_ENTRIES
+  sta workw
+  lda #$0020 ; bytes per entry
+  sta workw2
+  jsr mul_16
+  ; assume bytes per sector is 512 to avoid a divide, fix later
+  .repeat 9
+  lsr workw2
+  ror workw
+  .endrep
+  clc
+  lda root_start
+  adc workw
+  sta data_start
+  lda root_start+2
+  adc workw2
+  sta data_start+2
+
+  ACC_8
+  lda sec_buf + FAT_BPB_SECTORS_PER_CLUSTER
+  sta sec_per_cluster
+  
+  rts
+
 start:
   lda #$01 ; ca1 rising edge
   sta VIA2_PCR
@@ -223,7 +284,7 @@ start:
   IND_8
 
   LD_PTR str_model
-  jsr puts ; dies here
+  jsr puts
   ldx #27 * 2
 @model_loop:
   lda sec_buf, x
@@ -271,6 +332,8 @@ start:
   pha
   IND_8
   jsr cf_read_sector
+
+  jsr fat_read_params ; calculate region starts etc
   
   ; boot sector loaded, get to the fat
   LD_PTR str_vol_label
@@ -294,22 +357,7 @@ start:
   lda #1
   pha
   pea fat_buf
-  IND_16
-  ldx #FAT_BPB_RES_SECTORS
-  lda sec_buf, x
-  clc
-  adc vol_start
-  sta fat_start
-  lda sec_buf+1, x
-  adc vol_start+1
-  sta fat_start+1
-  lda #0
-  adc vol_start+2
-  sta fat_start+2
-  lda #0
-  adc vol_start+3
-  sta fat_start+3
-  
+  lda fat_start+3
   pha
   lda fat_start+2
   pha
@@ -317,49 +365,9 @@ start:
   pha
   lda fat_start
   pha
-  IND_8
   jsr cf_read_sector
 
-  ; get root directory
-  ACC_16
-  lda sec_buf + FAT_BPB_NUM_FATS
-  and #$00ff ; only one byte
-  sta workw
-  lda sec_buf + FAT_BPB_SECTORS_PER_FAT
-  sta workw2
-  jsr mul_16
-  clc
-  lda fat_start
-  adc workw
-  sta root_start
-  lda fat_start+2
-  adc workw2
-  sta root_start+2 ; root_start = fat_start + (num_fats * sec_per_fat)
-
-  ; calculate data start too
-  lda sec_buf + FAT_BPB_NUM_ROOT_ENTRIES
-  sta workw
-  lda #$0032
-  sta workw2
-  jsr mul_16
-  ; assume bytes per sector is 512 to avoid a divide, fix later
-  .repeat 9
-  clc
-  ror workw2
-  ror workw
-  .endrep
-  clc
-  lda root_start
-  adc workw
-  sta data_start
-  lda root_start+2
-  adc workw2
-  sta data_start+2
-
-  ACC_8
-  lda sec_buf + FAT_BPB_SECTORS_PER_CLUSTER
-  sta sec_per_cluster
-
+  ; load root directory
   lda #1
   pha
   pea sec_buf
@@ -374,8 +382,29 @@ start:
   jsr cf_read_sector
 
   jsr print_dir
+  stz current_dir
+  stz current_dir+1
+  ;jsr pr_current_dir
+
+  LD_PTR str_find_test
+  jsr fat_find_relative
+  ACC_16
+  jsr fat_load_cluster
+  ACC_8
+  LD_PTR str_test2
+  jsr fat_find_relative
+  bcc :+
+  LD_PTR str_find_fail
+  jsr puts
+  rts
+:	
+  sta current_dir
+  xba
+  sta current_dir+1
+  ;jsr pr_current_dir
 
   rts
+  
 @lba_err:
   LD_PTR str_err_lba
   jsr puts
@@ -393,6 +422,16 @@ str_err_lba:
   .byte "couldn't set lba mode", CR, LF, 0
 str_err_8bit:
   .byte "couldn't set 8 bit mode", CR, LF, 0
+str_crazy_error:
+  .byte "somehow .. doesn't exist", CR, LF, 0
+str_dot_dot_filename:
+  .byte "..         "
+str_find_test:
+  .byte "TURD       "
+str_find_fail:
+  .byte "couldn't find", CR, LF, 0
+str_test2:
+  .byte "WEEWEE  TXT"
 
 mul_16:	; factors in workw and workw2, low result in workw high result in workw2
   .A16
@@ -466,6 +505,179 @@ cluster_to_sector: ; cluster in c, sector returned in workw+workw2
   sta workw2
   rts
 
+fat_find_relative: ; returns cluster in c if found, carry set and c invalid otherwise
+  ; current directory entry assumed to be in sec_buf
+  ; pointer to 11 byte filename in workw
+  ; TODO: handle directory bigger than 512B, dedicated buffer for current dir data,
+  ; search subdirectories, etc etc etc
+  .A8
+  .I8
+  phx
+  phy
+  IND_16
+  ldx #$0000
+  ldy #$0000
+@outer:
+  stx workw2
+@loop:
+  lda sec_buf+FAT_DIR_NAME, x
+  beq @bad_quit ; no more entries, no match
+  cmp (workw), y
+  bne @mismatch
+  inx
+  iny
+  cpy #$000b ; 11 characters
+  bne @loop
+  ; all characters matched, get cluster and quit
+  ldx workw2
+  lda sec_buf+FAT_DIR_CLUSTER+1, x
+  xba
+  lda sec_buf+FAT_DIR_CLUSTER, x
+  clc
+  bra @quit
+@mismatch: ; move to next entry and try again
+  ldx workw2
+  ACC_16
+  txa
+  clc
+  adc #$0020
+  tax
+  ACC_8
+  bra @outer
+@bad_quit:
+  sec
+@quit:
+  IND_8
+  ply
+  plx
+  rts
+  
+fat_get_parent:	; directory cluster num in c, returns parent cluster in c
+  .A8
+  .I8
+  phx
+  phy
+  xba
+  jsr prbyte
+  xba
+  jsr prbyte
+  ACC_16
+  jsr fat_load_cluster
+  ACC_8
+  LD_PTR str_dot_dot_filename
+  jsr fat_find_relative
+  bcc :+
+  LD_PTR str_crazy_error
+  jsr puts
+  sec
+  :
+  ply
+  plx
+  rts ; parent's cluster should be in c now
+
+fat_load_cluster: ; cluster in c, first sector loaded to secbuf
+  .A16
+  .I8
+  jsr cluster_to_sector
+  ACC_8
+  lda #$01
+  pha
+  pea sec_buf
+  lda workw2h
+  pha
+  lda workw2l
+  pha
+  lda workwh
+  pha
+  lda workwl
+  pha
+  jsr cf_read_sector
+  ACC_16
+  rts
+  
+pr_current_dir:
+  .A8
+  .I8
+  lda #'/'
+  jsr putchar
+  ACC_16
+  lda current_dir
+  beq @quit
+  jsr fat_load_cluster
+  ldx #$00
+@parent_loop: ; follow .. entries until we get back to root
+  pha ; push them so we can then traverse back down, printing names
+  inx ; x = num levels
+  ACC_8
+  jsr fat_get_parent
+  ACC_16
+  beq @end_loop ; parent of zero means it's just under / which we already printed
+  bra @parent_loop
+@end_loop: ; stack should now contain each cluster all the way down to current dir
+  ; load root dir to start finding and printing names
+  ACC_8
+  lda #1
+  pha
+  pea sec_buf
+  lda root_start+3
+  pha
+  lda root_start+2
+  pha
+  lda root_start+1
+  pha
+  lda root_start
+  pha
+  jsr cf_read_sector
+  ACC_16
+  txy ; y = total number of cluster numbers pushed
+  IND_16
+@name_loop:
+  ldx #$0000
+  pla
+  pha ; need it in a but still saved
+@find_entry: ; get to the entry matching the cluster
+  cmp sec_buf+FAT_DIR_CLUSTER, x
+  ; since old entries can stick around after deletion
+  ; i should probably check it's not deleted before
+  ; assuming it's the right one
+  beq @found
+  txa
+  clc
+  adc #$0020
+  tax
+  bra @find_entry
+@found: ; now print the name
+  ACC_8
+  phy
+  ldy #$0000
+@print_loop:
+  lda sec_buf+FAT_DIR_NAME, x
+  cmp #' '
+  beq @done_print
+  jsr putchar
+  inx
+  iny
+  cpy #11
+  bne @print_loop
+@done_print:
+  lda #'/'
+  jsr putchar
+  ACC_16
+  ply
+  dey
+  beq @quit ; all levels popped and printed, done
+  pla
+  jsr fat_load_cluster
+  bra @name_loop
+@quit:
+  ACC_8
+  IND_8
+  lda #CR
+  jsr putchar
+  lda #LF
+  jsr putchar
+  rts
+
 print_dir: ; assuming root dir in sec_buf for now
   ACC_8
   IND_16
@@ -529,21 +741,30 @@ print_dir: ; assuming root dir in sec_buf for now
   lda sec_buf + FAT_DIR_MTIME_DATE, x
   xba
   lda sec_buf + FAT_DIR_MTIME_DATE+1, x
-  jsr prbyte
   xba
-  jsr prbyte
+  phx
+  IND_8
+  jsr pr_fat_date
+  IND_16
+  plx
+  
   lda #TAB
   jsr putchar
   lda #TAB
   jsr putchar
   lda sec_buf + FAT_DIR_SIZE+3, x
-  jsr prbyte
+  sta workqh+1
   lda sec_buf + FAT_DIR_SIZE+2, x
-  jsr prbyte
+  sta workqh
   lda sec_buf + FAT_DIR_SIZE+1, x
-  jsr prbyte
+  sta workql+1
   lda sec_buf + FAT_DIR_SIZE, x
-  jsr prbyte
+  sta workql
+  phx
+  IND_8
+  jsr pr_fat_filesize
+  IND_16
+  plx
   lda #CR
   jsr putchar
   lda #LF
@@ -557,6 +778,7 @@ print_dir: ; assuming root dir in sec_buf for now
   ACC_8
   brl @loop
 @quit:
+  IND_8
   rts
 
 pr_bcd:	; bcd byte in a, does not check validity
@@ -578,9 +800,75 @@ pr_bcd:	; bcd byte in a, does not check validity
   jsr putchar
   rts
 
+  ; credit Andrew Jacobs (http://6502.org/source/integers/hex2dec-more.htm)
+bin_to_bcd_16: ; input in workw
+  .A8
+  .I8
+  phx
+  sed
+  stz workw2l
+  stz workw2h
+  ldx #16
+@loop:
+  asl workwl
+  rol workwh
+  lda workw2l
+  adc workw2l
+  sta workw2l
+  lda workw2h
+  adc workw2h
+  sta workw2h
+  dex
+  bne @loop
+
+  lda workw2h
+  xba
+  lda workw2l
+  plx
+  cld
+  rts
+
+bin_to_bcd_32: ; input in workq, output in workb2+workq2
+  .A8
+  .I8
+  phx
+  sed
+  stz workq2l
+  stz workq2l+1
+  stz workq2h
+  stz workq2h+1
+  stz workb2
+  ldx #32
+@loop:
+  asl workql
+  rol workql+1
+  rol workqh
+  rol workqh+1
+  lda workq2l
+  adc workq2l
+  sta workq2l
+  lda workq2l+1
+  adc workq2l+1
+  sta workq2l+1
+  lda workq2h
+  adc workq2h
+  sta workq2h
+  lda workq2h+1
+  adc workq2h+1
+  sta workq2h+1
+  lda workb2
+  adc workb2
+  sta workb2
+  dex
+  bne @loop
+
+  plx
+  cld
+  rts
+  
   ; credit Lee Davison (http://6502.org/users/mycorner/6502/shorts/bin2bcd.html)
 b2b_table:	
-  .byte $63,$31,$15,$07,$03,$01,$00
+  .byte $63, $31, $15, $07, $03, $01, $00
   
 bin_to_bcd: ; assumes input <= 99, result in a
   .A8
@@ -607,7 +895,6 @@ pr_fat_time: ; time in c, 15..11 H 10..5 M 4..0 S/2
   pha
   xba
   pha
-  and #%11111000
   lsr
   lsr
   lsr
@@ -643,4 +930,154 @@ pr_fat_time: ; time in c, 15..11 H 10..5 M 4..0 S/2
   asl a ; seconds stored divided by 2
   jsr bin_to_bcd
   jsr pr_bcd
+  rts
+
+pr_fat_date: ; date in c, 15..9 y-1980, 8..5 m 4..0 d
+  pha
+  xba
+  pha
+  lsr
+  ACC_16
+  and #$00ff
+  clc
+  adc #1980
+  sta workw
+  ACC_8
+  jsr bin_to_bcd_16
+  xba
+  jsr pr_bcd
+  xba
+  jsr pr_bcd
+  lda #'-'
+  jsr putchar
+
+  pla
+  and #$01
+  asl
+  asl
+  asl
+  pha
+  lda 2, s
+  lsr
+  lsr
+  lsr
+  lsr
+  lsr
+  ora 1, s
+  jsr bin_to_bcd
+  jsr pr_bcd
+  lda #'-'
+  jsr putchar
+
+  pla
+  pla
+  and #%00011111
+  jsr bin_to_bcd
+  jsr pr_bcd
+  rts
+
+pr_fat_filesize: ; size in workq
+  ACC_16
+  lda #$ffff
+  sta workq2l
+  lda #$000f
+  sta workq2h ; over 1mb?
+  lda workqh
+  cmp workq2h
+  bne @donemb
+  lda workql
+  cmp workq2l
+  bne @donemb
+  bra @skipmb ; == f,ffff
+@donemb:
+  bcc @skipmb
+  brl @pr_mb
+@skipmb:
+  lda #$03ff
+  sta workq2l
+  stz workq2h ; over 1kb?
+  lda workqh
+  cmp workq2h
+  bne @donekb
+  lda workql
+  cmp workq2l
+  beq @pr_b ; == 3ff
+@donekb:
+  bcs @pr_kb
+  
+@pr_b:
+  ACC_8
+  jsr bin_to_bcd_32
+  lda workb2
+  jsr pr_bcd
+  lda workq2h+1
+  jsr pr_bcd
+  lda workq2h
+  jsr pr_bcd
+  lda workq2l+1
+  jsr pr_bcd
+  lda workq2
+  jsr pr_bcd
+  lda #' '
+  jsr putchar
+  lda #'B'
+  jsr putchar
+  brl @quit
+
+@pr_kb:
+  ACC_16
+  .repeat 10
+  lsr workqh
+  ror workql
+  .endrep
+  ACC_8
+  jsr bin_to_bcd_32
+  lda workb2
+  jsr pr_bcd
+  lda workq2h+1
+  jsr pr_bcd
+  lda workq2h
+  jsr pr_bcd
+  lda workq2l+1
+  jsr pr_bcd
+  lda workq2
+  jsr pr_bcd
+  lda #' '
+  jsr putchar
+  lda #'K'
+  jsr putchar
+  lda #'i'
+  jsr putchar
+  lda #'B'
+  jsr putchar
+  brl @quit
+
+@pr_mb:
+  ACC_16
+  .repeat 20
+  lsr workqh
+  ror workql
+  .endrep
+  ACC_8
+  jsr bin_to_bcd_32
+  lda workb2
+  jsr pr_bcd
+  lda workq2h+1
+  jsr pr_bcd
+  lda workq2h
+  jsr pr_bcd
+  lda workq2l+1
+  jsr pr_bcd
+  lda workq2
+  jsr pr_bcd
+  lda #' '
+  jsr putchar
+  lda #'M'
+  jsr putchar
+  lda #'i'
+  jsr putchar
+  lda #'B'
+  jsr putchar
+
+@quit:
   rts
