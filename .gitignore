@@ -12,4 +12,5 @@
 *.sym
 *.lck
 *.bak
+pico/vga-controller/build
 kicad/816-v2/816-v2-backups

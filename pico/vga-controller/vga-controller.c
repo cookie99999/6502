@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <math.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
@@ -18,16 +19,10 @@
 #define D6 12
 #define D7 13
 
-#define RS0 14
-#define RS1 15
-#define RS2 26
-#define RS3 27
-
 #define RWB 0
 #define CSB 1
 #define PH2 26
 #define RESB 22
-#define IRQB 28
 
 static uint8_t dbus_buf[5120];
 static uint8_t *dbus_bufend = dbus_buf + sizeof(dbus_buf);
@@ -115,6 +110,7 @@ void dbus_task(void) {
 	cursor_y = 0;
 	break;
       case BACKSPACE:
+	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
 	cursor_x -= textsize * 6;
 	if (cursor_x < 0) {
 	  cursor_y -= textsize * 8;
@@ -180,16 +176,188 @@ void dbus_task(void) {
   }
 }
 
+typedef struct {
+  float x;
+  float y;
+  float z;
+} vec3;
+
+typedef struct {
+  unsigned short rows;
+  unsigned short cols;
+  float m[4][4];
+} matrix;
+
+matrix newmat(unsigned short r, unsigned short c) {
+  matrix m = { r, c, {
+	   {0, 0, 0, 0},
+	   {0, 0, 0, 0},
+	   {0, 0, 0, 0},
+	   {0, 0, 0, 0}}};
+  return m;
+}
+
+matrix v2m(vec3 v) {
+  matrix result = newmat(4, 1);
+  result.m[0][0] = v.x;
+  result.m[1][0] = v.y;
+  result.m[2][0] = v.z;
+  result.m[3][0] = 1.;
+  return result;
+}
+
+vec3 m2v(matrix m) {
+  vec3 result = { m.m[0][0] / m.m[3][0],
+		  m.m[1][0] / m.m[3][0],
+		  m.m[2][0] / m.m[3][0]};
+  return result;
+}
+
+matrix matmul(matrix a, matrix b) {
+  matrix result = newmat(a.rows, b.cols);
+  for (int i = 0; i < a.rows; i++) {
+    for (int j = 0; j < b.cols; j++) {
+      result.m[i][j] = 0.;
+      for (int k = 0; k < a.cols; k++) {
+	result.m[i][j] += a.m[i][k] * b.m[k][j];
+      }
+    }
+  }
+  return result;
+}
+
+typedef struct {
+  vec3 v1;
+  vec3 v2;
+  vec3 v3;
+} tri;
+
+void identity(matrix *m) {
+  for (int i = 0; i < m->cols; i++) {
+    for (int j = 0; j < m->rows; j++) {
+      m->m[i][j] = i == j ? 1. : 0.;
+    }
+  }
+}
+
+vec3 project(vec3 v) {
+  vec3 result = { (v.x + 1.) * WIDTH/2., (v.y + 1.) * HEIGHT/2., (v.z + 1.) * 255./2. };
+  return result;
+}
+
+vec3 persp(vec3 v) {
+  float c = 1. - v.z / 3.;
+  vec3 result;
+  result.x = v.x / c;
+  result.y = v.y / c;
+  result.z = v.z / c;
+  return result;
+}
+
+vec3 rot(vec3 v) {
+  float a = M_PI/6.;
+  float cosy = cosf(a);
+  float siny = sinf(a);
+  matrix roty = newmat(3, 3);
+  roty.m[0][0] = cosy;
+  roty.m[0][1] = 0.;
+  roty.m[0][2] = siny;
+
+  roty.m[1][0] = 0.;
+  roty.m[1][1] = 1.;
+  roty.m[1][2] = 0.;
+
+  roty.m[2][0] = -siny;
+  roty.m[2][1] = 0.;
+  roty.m[2][2] = cosy;
+  return m2v(matmul(roty, v2m(v)));
+}
+  
+void threed_demo() {
+  tri cube_faces[12] = {
+    { {0, 0, -0.8}, {0, 0, 0}, {0, -0.8, 0} },
+    { {0, 0, -0.8}, {0, 0, 0}, {0, -0.8, -0.8} },
+    
+    { {-0.8, -0.8, -0.8}, {-0.8, -0.8, 0}, {-0.8, 0, 0} },
+    { {-0.8, -0.8, -0.8}, {-0.8, 0, 0}, {-0.8, 0, -0.8} },
+
+    { {0, 0, 0}, {0, 0, -0.8}, {-0.8, 0, -0.8} },
+    { {0, 0, 0}, {-0.8, 0, -0.8}, {-0.8, 0, 0} },
+
+    { {0, -0.8, -0.8}, {0, -0.8, 0}, {-0.8, -0.8, 0} },
+    { {0, -0.8, -0.8}, {-0.8, -0.8, 0}, {-0.8, -0.8, -0.8} },
+
+    { {0, -0.8, 0}, {0, 0, 0}, {-0.8, 0, 0} },
+    { {0, -0.8, 0}, {-0.8, 0, 0}, {-0.8, -0.8, 0} },
+
+    { {0, 0, -0.8}, {0, -0.8, -0.8}, {-0.8, -0.8, -0.8} },
+    { {0, 0, -0.8}, {-0.8, -0.8, -0.8}, {-0.8, 0, -0.8} }
+  };
+
+  matrix viewport = newmat(4, 4);
+  identity(&viewport);
+  viewport.m[0][3] = WIDTH/2.;
+  viewport.m[1][3] = HEIGHT/2.;
+  viewport.m[2][3] = 255/2.;
+  viewport.m[0][0] = WIDTH/2.;
+  viewport.m[1][1] = HEIGHT/2.;
+  viewport.m[2][2] = 255/2.;
+
+  matrix projection = newmat(4, 4);
+  identity(&projection);
+  projection.m[3][2] = -1./-2.;
+
+  float pi180 = 3.14159/180.f;
+  float cosz = cosf(15. * pi180);
+  float sinz = sinf(15. * pi180);
+  float cosy = cosf(5. * pi180);
+  float siny = sinf(5. * pi180);
+  
+  matrix roty = newmat(3, 3);
+  roty.m[0][0] = cosy;
+  roty.m[0][1] = 0.;
+  roty.m[0][2] = siny;
+
+  roty.m[1][0] = 0.;
+  roty.m[1][1] = 1.;
+  roty.m[1][2] = 0.;
+
+  roty.m[2][0] = -siny;
+  roty.m[2][1] = 0.;
+  roty.m[2][2] = cosy;
+
+  matrix rotz = newmat(3, 3);
+  rotz.m[0][0] = cosz;
+  rotz.m[0][1] = -sinz;
+  rotz.m[0][2] = 0.;
+
+  rotz.m[1][0] = sinz;
+  rotz.m[1][1] = cosz;
+  rotz.m[1][2] = 0.;
+
+  rotz.m[2][0] = 0.;
+  rotz.m[2][1] = 0.;
+  rotz.m[2][2] = 1.;
+
+  //matrix rot = matmul(rotz, roty);
+  
+  for (int i = 0; i < 12; i++) {
+    //vec3 screenv1 = 
+    draw_tri((short)(project(persp(rot(cube_faces[i].v1))).x),
+	     (short)(project(persp(rot(cube_faces[i].v1))).y),
+
+	     (short)(project(persp(rot(cube_faces[i].v2))).x),
+	     (short)(project(persp(rot(cube_faces[i].v2))).y),
+
+	     (short)(project(persp(rot(cube_faces[i].v3))).x),
+	     (short)(project(persp(rot(cube_faces[i].v3))).y),
+	     RED);
+  }
+}
+
 void main() {
   set_sys_clock_khz(150000, true);
   stdio_init_all();
-
-  init_VGA();
-  fill_rect(0, 0, 640, 480, CYAN);
-  set_text_size(1);
-  set_text_wrap(1);
-  set_cursor(0, 0);
-  set_text_color(BLACK, CYAN);
 
   dbus_rptr = dbus_wptr = dbus_buf;
   dbus_pio = pio0;
@@ -209,7 +377,16 @@ void main() {
   irq_set_enabled(dbus_pio_irq, true);
   pio_sm_set_enabled(dbus_pio, dbus_sm, true);
 
+  init_VGA();
+  fill_rect(0, 0, 640, 480, CYAN);
+  set_text_size(1);
+  set_text_wrap(1);
+  set_cursor(0, 0);
+  set_text_color(BLACK, CYAN);
+
   add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
+
+  //threed_demo();
   
   while (true) {
     dbus_task();
