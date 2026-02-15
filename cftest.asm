@@ -9,6 +9,7 @@
   .I8
 
   prbyte = $e527
+  prword = $e51e
   puts = $e4de
   putchar = $e4da
   sec_buf = $b000
@@ -297,10 +298,7 @@ start:
   inx
   cpx #47 * 2
   bne @model_loop
-  lda #CR
-  jsr putchar
-  lda #LF
-  jsr putchar
+  CRLF
   
   lda #1 ; 1 sector
   pha
@@ -349,10 +347,7 @@ start:
   cpy #11
   bne @loop
   IND_8
-  lda #CR
-  jsr putchar
-  lda #LF
-  jsr putchar
+  CRLF
   
   lda #1
   pha
@@ -384,25 +379,69 @@ start:
   jsr print_dir
   stz current_dir
   stz current_dir+1
-  ;jsr pr_current_dir
+  jsr pr_current_dir
 
   LD_PTR str_find_test
-  jsr fat_find_relative
+  jsr change_dir
   ACC_16
   jsr fat_load_cluster
   ACC_8
+  jsr print_dir
+  jsr pr_current_dir
+
+  ACC_16
+  lda current_dir
+  jsr fat_load_cluster
+  ACC_8
+
   LD_PTR str_test2
-  jsr fat_find_relative
+  jsr change_dir
   bcc :+
   LD_PTR str_find_fail
   jsr puts
-  rts
 :	
-  sta current_dir
-  xba
-  sta current_dir+1
-  ;jsr pr_current_dir
+  ACC_16
+  jsr fat_load_cluster
+  ACC_8
 
+  LD_PTR str_test3
+  jsr change_dir
+  bcc :+
+  LD_PTR str_find_fail
+  jsr puts
+:
+  ACC_16
+  jsr fat_load_cluster
+  ACC_8
+
+  LD_PTR str_test4
+  jsr change_dir
+  bcc :+
+  LD_PTR str_find_fail
+  jsr puts
+:
+  ACC_16
+  jsr fat_load_cluster
+  ACC_8
+
+  LD_PTR str_test5
+  jsr change_dir
+  bcc :+
+  LD_PTR str_find_fail
+  jsr puts
+:
+  ACC_16
+  jsr fat_load_cluster
+  ACC_8
+
+  jsr pr_current_dir
+  
+  LD_PTR str_file
+  jsr change_dir
+  bcc :+
+  LD_PTR str_find_fail
+  jsr puts
+:
   rts
   
 @lba_err:
@@ -418,10 +457,16 @@ str_model:
   .byte "Model number: ", CR, LF, 0
 str_vol_label:
   .byte "1st Volume label:", CR, LF, 0
+str_file:
+  .byte "file ", 0
+str_dir:
+  .byte "directory ", 0
 str_err_lba:
   .byte "couldn't set lba mode", CR, LF, 0
 str_err_8bit:
   .byte "couldn't set 8 bit mode", CR, LF, 0
+str_err_noexist:
+  .byte "does not exist", CR, LF, 0
 str_crazy_error:
   .byte "somehow .. doesn't exist", CR, LF, 0
 str_dot_dot_filename:
@@ -431,7 +476,13 @@ str_find_test:
 str_find_fail:
   .byte "couldn't find", CR, LF, 0
 str_test2:
-  .byte "WEEWEE  TXT"
+  .byte "NEW        "
+str_test3:
+  .byte "UH         "
+str_test4:
+  .byte "OH         "
+str_test5:
+  .byte "STINKY     "
 
 mul_16:	; factors in workw and workw2, low result in workw high result in workw2
   .A16
@@ -454,7 +505,7 @@ mul_16:	; factors in workw and workw2, low result in workw high result in workw2
   rts
 
 div_16: ; x = ptr to 8 bytes of zp: num den quo rem
-  num = workw2
+  num = workw
   den = workw2
   quo = retw
   rem = retw2
@@ -489,6 +540,7 @@ div_16: ; x = ptr to 8 bytes of zp: num den quo rem
   
 cluster_to_sector: ; cluster in c, sector returned in workw+workw2
   .A16
+  .I8
   sec
   sbc #2
   sta workw
@@ -519,6 +571,9 @@ fat_find_relative: ; returns cluster in c if found, carry set and c invalid othe
   ldy #$0000
 @outer:
   stx workw2
+  lda sec_buf+FAT_DIR_ATTR, x
+  and #FAT_ATTR_VOL_ID
+  bne @mismatch ; skip volume id and also lfn
 @loop:
   lda sec_buf+FAT_DIR_NAME, x
   beq @bad_quit ; no more entries, no match
@@ -543,6 +598,7 @@ fat_find_relative: ; returns cluster in c if found, carry set and c invalid othe
   adc #$0020
   tax
   ACC_8
+  ldy #$0000
   bra @outer
 @bad_quit:
   sec
@@ -557,10 +613,6 @@ fat_get_parent:	; directory cluster num in c, returns parent cluster in c
   .I8
   phx
   phy
-  xba
-  jsr prbyte
-  xba
-  jsr prbyte
   ACC_16
   jsr fat_load_cluster
   ACC_8
@@ -578,6 +630,9 @@ fat_get_parent:	; directory cluster num in c, returns parent cluster in c
 fat_load_cluster: ; cluster in c, first sector loaded to secbuf
   .A16
   .I8
+  pha
+  phy
+  phx
   jsr cluster_to_sector
   ACC_8
   lda #$01
@@ -593,6 +648,28 @@ fat_load_cluster: ; cluster in c, first sector loaded to secbuf
   pha
   jsr cf_read_sector
   ACC_16
+  plx
+  ply
+  pla
+  rts
+
+change_dir: ; pointer to name in workw
+  .A8
+  .I8
+  jsr fat_find_relative
+  bcc :+
+  LD_PTR str_dir
+  jsr puts
+  LD_PTR str_err_noexist
+  jsr puts
+  sec
+  rts
+:
+  sta current_dir
+  xba
+  sta current_dir+1
+  xba
+  clc
   rts
   
 pr_current_dir:
@@ -602,8 +679,12 @@ pr_current_dir:
   jsr putchar
   ACC_16
   lda current_dir
-  beq @quit
+  bne :+
+  brl @quit
+:	
+  pha
   jsr fat_load_cluster
+  pla
   ldx #$00
 @parent_loop: ; follow .. entries until we get back to root
   pha ; push them so we can then traverse back down, printing names
@@ -611,11 +692,14 @@ pr_current_dir:
   ACC_8
   jsr fat_get_parent
   ACC_16
+  cmp #$0000
   beq @end_loop ; parent of zero means it's just under / which we already printed
   bra @parent_loop
 @end_loop: ; stack should now contain each cluster all the way down to current dir
   ; load root dir to start finding and printing names
   ACC_8
+  phy
+  phx
   lda #1
   pha
   pea sec_buf
@@ -629,6 +713,8 @@ pr_current_dir:
   pha
   jsr cf_read_sector
   ACC_16
+  plx
+  ply
   txy ; y = total number of cluster numbers pushed
   IND_16
 @name_loop:
@@ -637,16 +723,23 @@ pr_current_dir:
   pha ; need it in a but still saved
 @find_entry: ; get to the entry matching the cluster
   cmp sec_buf+FAT_DIR_CLUSTER, x
-  ; since old entries can stick around after deletion
-  ; i should probably check it's not deleted before
-  ; assuming it's the right one
   beq @found
+@no_match:
+  pha
   txa
   clc
   adc #$0020
   tax
+  pla
   bra @find_entry
 @found: ; now print the name
+  lda sec_buf+FAT_DIR_NAME, x
+  and #$00ff
+  cmp #$e5 ; skip deleted
+  beq @no_match
+  lda sec_buf+FAT_DIR_ATTR, x
+  and #FAT_ATTR_VOL_ID ; skip vol ids
+  bne @no_match
   ACC_8
   phy
   ldy #$0000
@@ -664,18 +757,19 @@ pr_current_dir:
   jsr putchar
   ACC_16
   ply
+  pla
   dey
   beq @quit ; all levels popped and printed, done
-  pla
+  phy
+  IND_8
   jsr fat_load_cluster
+  IND_16
+  ply
   bra @name_loop
 @quit:
   ACC_8
   IND_8
-  lda #CR
-  jsr putchar
-  lda #LF
-  jsr putchar
+  CRLF
   rts
 
 print_dir: ; assuming root dir in sec_buf for now
@@ -765,10 +859,7 @@ print_dir: ; assuming root dir in sec_buf for now
   jsr pr_fat_filesize
   IND_16
   plx
-  lda #CR
-  jsr putchar
-  lda #LF
-  jsr putchar
+  CRLF
 @skip:
   ACC_16
   txa

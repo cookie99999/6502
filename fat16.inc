@@ -55,6 +55,15 @@
   FAT_DIR_CLUSTER = $1a ; number of first cluster
   FAT_DIR_SIZE = $1c ; size in bytes
 
+  ; directory entry attributes
+  FAT_ATTR_READ_ONLY = $01
+  FAT_ATTR_HIDDEN = $02
+  FAT_ATTR_SYSTEM = $04
+  FAT_ATTR_VOL_ID = $08
+  FAT_ATTR_DIRECTORY = $10
+  FAT_ATTR_ARCHIVE = $20
+  FAT_ATTR_LFN = $0f
+
   ; long file name entries
   FAT_LFN_INDEX = $00 ; bit 7 = deleted, bit 6 = last lfn, 5-0 = index
   FAT_LFN_DATA_1 = $01 ; first 5 long chars
