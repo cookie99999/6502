@@ -19,6 +19,7 @@
   root_start = $a008
   data_start = $a00c
   sec_per_cluster = $a010
+  file_buf = $5000
 
   UTC_OFFS = <-5
 
@@ -105,6 +106,8 @@ cf_drq_wait:
   rts
 
 cf_read_sector:	; 32 bit sector number, buffer ptr, count
+  .A8
+  .I8
   @count = 9
   @buf = 7
   @lba = 3 ; lo-lo, lo-hi, hi-lo, hi-hi
@@ -131,6 +134,7 @@ cf_read_sector:	; 32 bit sector number, buffer ptr, count
   pha
   jsr cf_write_reg
   lda @count, s
+  tax ; x = sector count
   pha
   lda #CF_SEC_COUNT
   pha
@@ -139,6 +143,13 @@ cf_read_sector:	; 32 bit sector number, buffer ptr, count
   jsr cf_write_reg
   jsr cf_drq_wait
 
+  stx workwl
+  stz workwh
+  ACC_16
+  lda #512
+  sta workw2
+  jsr mul_16
+  ACC_8
   IND_16
   ldy #$0000
 @read_loop:
@@ -147,7 +158,7 @@ cf_read_sector:	; 32 bit sector number, buffer ptr, count
   jsr cf_read_reg
   sta (@buf, s), y
   iny
-  cpy #512
+  cpy workw
   bne @read_loop
   ; stack cleanup
   ACC_16
@@ -382,66 +393,11 @@ start:
   jsr pr_current_dir
 
   LD_PTR str_find_test
-  jsr change_dir
-  ACC_16
-  jsr fat_load_cluster
-  ACC_8
-  jsr print_dir
-  jsr pr_current_dir
+  lda #$50
+  xba
+  lda #$00
+  jsr fat_load_file
 
-  ACC_16
-  lda current_dir
-  jsr fat_load_cluster
-  ACC_8
-
-  LD_PTR str_test2
-  jsr change_dir
-  bcc :+
-  LD_PTR str_find_fail
-  jsr puts
-:	
-  ACC_16
-  jsr fat_load_cluster
-  ACC_8
-
-  LD_PTR str_test3
-  jsr change_dir
-  bcc :+
-  LD_PTR str_find_fail
-  jsr puts
-:
-  ACC_16
-  jsr fat_load_cluster
-  ACC_8
-
-  LD_PTR str_test4
-  jsr change_dir
-  bcc :+
-  LD_PTR str_find_fail
-  jsr puts
-:
-  ACC_16
-  jsr fat_load_cluster
-  ACC_8
-
-  LD_PTR str_test5
-  jsr change_dir
-  bcc :+
-  LD_PTR str_find_fail
-  jsr puts
-:
-  ACC_16
-  jsr fat_load_cluster
-  ACC_8
-
-  jsr pr_current_dir
-  
-  LD_PTR str_file
-  jsr change_dir
-  bcc :+
-  LD_PTR str_find_fail
-  jsr puts
-:
   rts
   
 @lba_err:
@@ -472,17 +428,7 @@ str_crazy_error:
 str_dot_dot_filename:
   .byte "..         "
 str_find_test:
-  .byte "TURD       "
-str_find_fail:
-  .byte "couldn't find", CR, LF, 0
-str_test2:
-  .byte "NEW        "
-str_test3:
-  .byte "UH         "
-str_test4:
-  .byte "OH         "
-str_test5:
-  .byte "STINKY     "
+  .byte "MEDIUM  ASM"
 
 mul_16:	; factors in workw and workw2, low result in workw high result in workw2
   .A16
@@ -560,6 +506,7 @@ cluster_to_sector: ; cluster in c, sector returned in workw+workw2
 fat_find_relative: ; returns cluster in c if found, carry set and c invalid otherwise
   ; current directory entry assumed to be in sec_buf
   ; pointer to 11 byte filename in workw
+  ; return entry # * $20 in retw
   ; TODO: handle directory bigger than 512B, dedicated buffer for current dir data,
   ; search subdirectories, etc etc etc
   .A8
@@ -603,6 +550,7 @@ fat_find_relative: ; returns cluster in c if found, carry set and c invalid othe
 @bad_quit:
   sec
 @quit:
+  stx retw
   IND_8
   ply
   plx
@@ -626,6 +574,23 @@ fat_get_parent:	; directory cluster num in c, returns parent cluster in c
   ply
   plx
   rts ; parent's cluster should be in c now
+
+fat_next_cluster: ; current cluster in c, next returned in c, carry set if last one
+  ; TODO fix for >512 bytes of fat
+  .A16
+  IND_16
+  asl ; x2
+  tax
+  lda fat_buf, x
+  cmp #$ffff
+  bne :+
+  sec
+  IND_8
+  rts
+:
+  clc
+  IND_8
+  rts
 
 fat_load_cluster: ; cluster in c, first sector loaded to secbuf
   .A16
@@ -651,6 +616,101 @@ fat_load_cluster: ; cluster in c, first sector loaded to secbuf
   plx
   ply
   pla
+  rts
+
+  ; TODO replace with multi-sector load
+  ; at $80 sectors per cluster its obviously 64k
+  ; which won't fit in low ram
+fat_load_entire_cluster: ; cluster in c, buffer pointer in workw
+  .A16
+  .I8
+  pha
+  phy
+  phx
+  sta workw2 ; backup cluster num
+  ACC_8
+  lda sec_per_cluster
+  pha
+  ACC_16
+  pei (workw)
+  lda workw2
+  jsr cluster_to_sector
+  ACC_8
+  lda workw2h
+  pha
+  lda workw2l
+  pha
+  lda workwh
+  pha
+  lda workwl
+  pha
+  jsr cf_read_sector
+  ACC_16
+  plx
+  ply
+  pla
+  rts
+
+fat_load_file: ; pointer to name in workw, buffer in c
+  .A8
+  .I8
+  sta scratch
+  xba
+  sta scratch+1
+  jsr fat_find_relative
+  bcc :+
+  LD_PTR str_file
+  jsr puts
+  LD_PTR str_err_noexist
+  jsr puts
+  sec
+  rts
+:
+  ; directory offset in retw, find size
+  ACC_16
+  IND_16
+  sta scratch+2 ; save cluster num
+  ldx retw
+  lda sec_buf+FAT_DIR_SIZE, x
+  sta workw
+  lda sec_buf+FAT_DIR_SIZE+2, x
+  sta workw2
+  IND_8
+  ; now divide by 512 to get sector count
+  .repeat 9
+  lsr workw2
+  ror workw
+  .endrep
+  lda workw
+  bne :+ ; if its under 512 it will need to be adjusted to 1 sector
+  inc workw
+:	
+  cmp #$0100
+  bcc :+
+  ; more than 255 sectors, figure this out later
+  ACC_8
+  lda #'X'
+  jsr putchar
+  rts
+  :
+  ACC_8
+  lda workwl
+  pha
+  jsr prbyte
+  ACC_16
+  pei (scratch)
+  lda scratch+2
+  jsr cluster_to_sector
+  ACC_8
+  lda workw2h
+  pha
+  lda workw2l
+  pha
+  lda workwh
+  pha
+  lda workwl
+  pha
+  jsr cf_read_sector
   rts
 
 change_dir: ; pointer to name in workw
