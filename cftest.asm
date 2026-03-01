@@ -24,83 +24,15 @@
   UTC_OFFS = <-5
 
   jmp start
-  
-cf_read_reg:
-  @reg = 3 ; reg number on stack
-  lda @reg, s
-  asl
-  asl
-  sta @reg, s ; shift it for masking in
-  stz VIA2_DDRA
-  lda #%01000011
-  sta VIA2_PB
-  ora @reg, s
-  sta VIA2_PB
-  and #%11111101
-  sta VIA2_PB
-  lda VIA2_PA
-  pha
-  lda VIA2_PB
-  ora #%01100011
-  sta VIA2_PB
-  ; s
-  ; 1- a backup
-  ; 2- rts lo
-  ; 3- rts hi
-  ; 4- reg
-  ; stack cleanup
-  ; could've used mvp but for a small stack frame it's not much faster
-  lda 3, s
-  sta 4, s
-  lda 2, s
-  sta 3, s
-  lda 1, s
-  sta 2, s
-  pla ; s++
-  pla
-  rts
-
-cf_write_reg:	; reg, byte on stack (rtl)
-  @reg = 3
-  @byte = 4
-  lda #%01000011
-  sta VIA2_PB
-  lda #$ff
-  sta VIA2_DDRA
-  lda @byte, s
-  sta VIA2_PA
-  lda @reg, s
-  asl
-  asl
-  sta @reg, s
-  lda VIA2_PB
-  ora @reg, s
-  sta VIA2_PB
-  and #%11111110
-  sta VIA2_PB
-  ora #%00000011
-  sta VIA2_PB
-  ; stack cleanup
-  lda 2, s
-  sta 4, s
-  lda 1, s
-  sta 3, s
-  pla
-  pla
-  rts
 
 cf_busy_wait:
-  lda #CF_STAT
-  pha
-  jsr cf_read_reg
+  lda CF_STAT
   and #CF_STAT_BSY
   bne cf_busy_wait
   rts
 
 cf_drq_wait:
-  lda #CF_STAT
-  pha
-  jsr cf_read_reg
+  lda CF_STAT
   and #CF_STAT_DRQ
   beq cf_drq_wait
   rts
@@ -114,33 +46,18 @@ cf_read_sector:	; 32 bit sector number, buffer ptr, count
   ; todo probably want to save all the registers i clobber
   lda @lba+3, s
   ora #$e0 ; mask in other part of head reg
-  pha
-  lda #CF_LBA_27_24
-  pha
-  jsr cf_write_reg
+  sta CF_LBA_27_24
   lda @lba+2, s
-  pha
-  lda #CF_LBA_23_16
-  pha
-  jsr cf_write_reg
+  sta CF_LBA_23_16
   lda @lba+1, s
-  pha
-  lda #CF_LBA_15_8
-  pha
-  jsr cf_write_reg
+  sta CF_LBA_15_8
   lda @lba, s
-  pha
-  lda #CF_LBA_7_0
-  pha
-  jsr cf_write_reg
+  sta CF_LBA_7_0
   lda @count, s
   tax ; x = sector count
-  pha
-  lda #CF_SEC_COUNT
-  pha
-  jsr cf_write_reg
-  pea CF_READ_SEC << 8 | CF_CMD
-  jsr cf_write_reg
+  sta CF_SEC_COUNT
+  lda #CF_READ_SEC
+  sta CF_CMD
   jsr cf_drq_wait
 
   stx workwl
@@ -153,9 +70,7 @@ cf_read_sector:	; 32 bit sector number, buffer ptr, count
   IND_16
   ldy #$0000
 @read_loop:
-  lda #CF_DATA
-  pha
-  jsr cf_read_reg
+  lda CF_DATA
   sta (@buf, s), y
   iny
   cpy workw
@@ -237,58 +152,41 @@ fat_read_params: ; vbr should be in secbuf
   
   rts
 
-start:
-  lda #$01 ; ca1 rising edge
-  sta VIA2_PCR
-  lda #$7f
-  sta VIA2_IER
-  stz VIA2_ACR
-  lda #$ff
-  sta VIA2_DDRB
+start:	
   jsr cf_busy_wait
-  pea $e0 << 8 | CF_HEAD ; faster way to push 2 byte constant
-  jsr cf_write_reg ; set lba mode
-  pea CF_INIT_PARAMS << 8 | CF_CMD
-  jsr cf_write_reg
+  lda #$e0
+  sta CF_HEAD ; set lba mode
+  lda #CF_INIT_PARAMS
+  sta CF_CMD
   jsr cf_busy_wait
-  lda #CF_HEAD
-  pha
-  jsr cf_read_reg
+  lda CF_HEAD
   and #$40 ; lba bit set?
   bne :+
   jmp @lba_err
 :
-  pea $01 << 8 | CF_FEATURE
-  jsr cf_write_reg ; set 8 bit mode
-  pea CF_SET_FEATURE << 8 | CF_CMD
-  jsr cf_write_reg
+  lda #$01
+  sta CF_FEATURE ; set 8 bit mode
+  lda #CF_SET_FEATURE
+  sta CF_CMD
   jsr cf_busy_wait
-  lda #CF_ERR
-  pha
-  jsr cf_read_reg
+  lda CF_ERR
   and #$04 ; abrt/invalid cmd
   beq :+
   jmp @8bit_err
 :
 
-  pea $00 << 8 | CF_SEC_COUNT
-  jsr cf_write_reg
-  pea $00 << 8 | CF_LBA_7_0
-  jsr cf_write_reg
-  pea $00 << 8 | CF_LBA_15_8
-  jsr cf_write_reg
-  pea $00 << 8 | CF_LBA_23_16
-  jsr cf_write_reg
-  pea CF_IDENTIFY << 8 | CF_CMD
-  jsr cf_write_reg
+  stz CF_SEC_COUNT
+  stz CF_LBA_7_0
+  stz CF_LBA_15_8
+  stz CF_LBA_23_16
+  lda #CF_IDENTIFY
+  sta CF_CMD
   jsr cf_drq_wait
 
   IND_16
   ldx #0
 @read_loop:
-  lda #CF_DATA
-  pha
-  jsr cf_read_reg
+  lda CF_DATA
   sta sec_buf, x
   inx
   cpx #512

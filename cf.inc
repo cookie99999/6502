@@ -1,27 +1,19 @@
-  ; port b masks
-  CF_WR = $01
-  CF_RD = $02
-  CF_A0 = $04
-  CF_A1 = $08
-  CF_A2 = $10
-  CF_CS0 = $20
-  CF_CS1 = $40
-
   ; registers
-  CF_DATA = 0
-  CF_ERR = 1
-  CF_FEATURE = 1
-  CF_SEC_COUNT = 2
-  CF_SECTOR_NUM = 3
-  CF_LBA_7_0 = 3
-  CF_CYL_LOW = 4
-  CF_LBA_15_8 = 4
-  CF_CYL_HIGH = 5
-  CF_LBA_23_16 = 5
-  CF_HEAD = 6
-  CF_LBA_27_24 = 6
-  CF_STAT = 7
-  CF_CMD = 7
+  CF = $df40
+  CF_DATA = CF+0
+  CF_ERR = CF+1
+  CF_FEATURE = CF+1
+  CF_SEC_COUNT = CF+2
+  CF_SECTOR_NUM = CF+3
+  CF_LBA_7_0 = CF+3
+  CF_CYL_LOW = CF+4
+  CF_LBA_15_8 = CF+4
+  CF_CYL_HIGH = CF+5
+  CF_LBA_23_16 = CF+5
+  CF_HEAD = CF+6
+  CF_LBA_27_24 = CF+6
+  CF_STAT = CF+7
+  CF_CMD = CF+7
 
   ; status flags
   CF_STAT_ERR = $01
