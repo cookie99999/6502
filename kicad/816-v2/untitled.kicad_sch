@@ -1735,10 +1735,6 @@
 		(at 166.37 110.49)
 		(uuid "7f077ab5-2f40-4732-ab07-601e9309f0d2")
 	)
-	(no_connect
-		(at 166.37 115.57)
-		(uuid "f3501a09-a03f-4d09-b347-ea69cbc62b40")
-	)
 	(bus_entry
 		(at 72.39 104.14)
 		(size 2.54 2.54)
@@ -4011,6 +4007,73 @@
 			(project ""
 				(path "/58394049-29b8-4f07-ad62-86008e573e13/8d99350d-4837-4fef-bdc1-612ee6f0c182"
 					(reference "#PWR019")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:VCC")
+		(at 166.37 115.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "267ccb0a-8f94-4652-b821-2b23c86c864a")
+		(property "Reference" "#PWR071"
+			(at 166.37 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "VCC"
+			(at 166.37 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Footprint" ""
+			(at 166.37 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 166.37 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"VCC\""
+			(at 166.37 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "3df396a1-ca9d-4f79-9614-e4cc1a30fefa")
+		)
+		(instances
+			(project ""
+				(path "/58394049-29b8-4f07-ad62-86008e573e13/8d99350d-4837-4fef-bdc1-612ee6f0c182"
+					(reference "#PWR071")
 					(unit 1)
 				)
 			)
