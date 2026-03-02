@@ -235,6 +235,7 @@ xmodem_send: ; going to be broken until i switch to argument stack
 @quit:
   LD_PTR str_finish_transfer
   jsr puts
+  cli
   rts
 
 xmodem_purge:
