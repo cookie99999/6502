@@ -5,6 +5,8 @@
   SVC_GETCHAR = 3
   SVC_PRBYTE = 4
   SVC_DELAY_SEC = 5
+  SVC_RAND8 = 6
+  SVC_RAND16 = 7
 
   .macro SVC offs
   ACC_8
@@ -22,34 +24,40 @@
   secs = $04
   mins = $05
   hrs = $06
-  ; 07 reserved
+  sec_per_cluster = $07
   current_dir = $08 ; 2 byte cluster num of current directory, 0=root
   irqvec = $0a ; 4 bytes
   nmivec = $0e ; 4 bytes
-  ; 12-1f reserved
-  workb = $20 ; 1 byte
-  workb2 = $21 ; 1 byte
-  workw = $22 ; 2 bytes
-  workwl = $22
-  workwh = $23
-  workw2 = $24 ; 2 bytes
-  workw2l = $24
-  workw2h = $25
-  workq = $26
-  workql = $26
-  workqh = $28
-  workq2 = $2a
-  workq2l = $2a
-  workq2h = $2c
-  retw = $2e
-  retw2 = $30
-  ; 31 reserved
-  scratch = $32 ; beginning of general purpose scratch space
+  vol_start = $12
+  fat_start = $16
+  root_start = $1a
+  data_start = $1d
+  prng_state = $22 ; 2 bytes, current lfsr state to get randoms from
+  workb = $24 ; 1 byte
+  workb2 = $25 ; 1 byte
+  workw = $26 ; 2 bytes
+  workwl = $26
+  workwh = $27
+  workw2 = $28 ; 2 bytes
+  workw2l = $28
+  workw2h = $29
+  workq = $2a
+  workql = $2a
+  workqh = $2c
+  workq2 = $2e
+  workq2l = $2e
+  workq2h = $30
+  retw = $32
+  retw2 = $34
+  scratch = $36 ; beginning of general purpose scratch space
   
   ; main ram vars
   inbuf = $0200 ; 256 bytes, keyboard buffer
   linebuf = $0300 ; 256 bytes, monitor line buffer
-
+  sec_buf = $0400 ; 512 bytes for currently worked on disk sector
+  fat_buf = $0600 ; 512 bytes for current fat sector
+  user_start = $0800 ; start of programs loaded from disk/serial
+  
   ; ascii constants
   ACK = $06
   NAK = $15

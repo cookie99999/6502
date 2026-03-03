@@ -17,6 +17,7 @@
   
   .segment "CODE"
   .include "xmodem.asm"
+  .include "prng.asm"
 
   .A8
   .I8
@@ -108,10 +109,11 @@ parseline:
   bcc @default_load
   jsr getaddr
   bra :+
-@default_load: ; receive files at 0400 if not otherwise specified
-  lda #$04
+@default_load: ; receive files at user_start if not otherwise specified
+  lda #<user_start
+  sta workwl
+  lda #>user_start
   sta workwh
-  stz workwl
 :
   jmp xmodem_recv
 @notxr:
@@ -378,8 +380,12 @@ getaddr: ; get 2 or 4 digit addr from linebuf[x] and put it in workw
   ;---------------------------------------
 
 putchar_serial:
+  xba
+  lda ACIA_STAT
+  and #$10 ; thank you rockwell for making parts that actually work
+  beq putchar_serial
+  xba
   sta ACIA_DATA
-  jsr tx_delay
   rts
 
 putchar: ; TODO maybe make it a macro since it's just 1 instruction
@@ -511,7 +517,7 @@ getchar:
   plx
   rts
 
-getchar_timeout:
+getchar_timeout: ; todo use clock variables to have a constant timeout
   phy
   phx
   ldy #$ff
@@ -541,34 +547,19 @@ getchar_timeout:
   ;  Misc procedures
   ;---------------------------------------
 
-tx_delay:
-  phy
-  ldy #MHZ_MULT
-@outer:
-  phx
-  ldx #$ff
-@loop:
-  dex
-  bne @loop
-  plx
-  dey
-  bne @outer
-  ply
-  rts
-
-delay_sec:
+delay_sec: ; todo use clock variables instead
   phx
   pha
   ldx #($10 * MHZ_MULT)
 @outer:
   lda #$ff
-  sta VIA1_T1C_L
-  sta VIA1_T1C_H
+  sta VIA2_T1C_L
+  sta VIA2_T1C_H
 @loop:
-  lda VIA1_IFR
+  lda VIA2_IFR
   and #$40
   beq @loop
-  lda VIA1_T1C_L
+  lda VIA2_T1C_L
   dex
   bne @outer
   pla
@@ -650,6 +641,8 @@ svc_table:
   .word getchar
   .word prbyte
   .word delay_sec
+  .word rand8
+  .word rand16 ; todo: modify service routines to return values more cleanly, on stack or otherwise
 
 str_boot:
   .byte "Ready", CR, LF, 0

@@ -1,7 +1,9 @@
   blknum = workb
   crc = workw2
-  blkbuf = $0300
+  blkbuf = $0300 ; reusing monitor line buffer as it's not needed during these routines
 
+  .export xmodem_send
+  
   .A8
   .I8
 xmodem_recv: ; workw = addr to store received program at
@@ -146,7 +148,6 @@ xmodem_recv: ; workw = addr to store received program at
 @done:
   lda #ACK
   jsr putchar_serial
-  jsr tx_delay
   LD_PTR str_xmodem_finish
   jsr puts
   cli

@@ -8,17 +8,10 @@
   .A8
   .I8
 
-  prbyte = $e527
-  prword = $e51e
-  puts = $e4de
-  putchar = $e4da
-  sec_buf = $b000
-  fat_buf = $c000
-  vol_start = $a000
-  fat_start = $a004
-  root_start = $a008
-  data_start = $a00c
-  sec_per_cluster = $a010
+  prbyte = $e565
+  ;prword = $e51e
+  puts = $e51c
+  putchar = $e518
   file_buf = $5000
 
   UTC_OFFS = <-5
