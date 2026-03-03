@@ -1,6 +1,5 @@
-000000-00d7ff: ram
-00d800-00deff: unmapped
-00df00-00df3f: io space, 16 bytes each for 4 devices
-00df40-00dfff: unmapped
+000000-00deff: ram
+00df00-00df4f: io space, 16 bytes each for 5 devices
+00df50-00dfff: unmapped
 00e000-00ffff: rom
 010000-ffffff: ram (currently 512k installed)
