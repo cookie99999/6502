@@ -16,4 +16,4 @@ These are the relevant files for my ongoing WDC 65C816 based homebrew computer. 
 - possibly look into sound and/or joysticks on the other 2
 - new PCB layout using more SMD/PLCC parts to reduce size and cost, with more SRAM and a proper DE-9 serial port
 
-I've used and modified ideas from many sources, notably Ben Eater, Garth Wilson, Daryl Rictor, Grant Seale, and many users and articles on the 6502.org forum.
+I've used and modified ideas from many sources, notably Ben Eater, Garth Wilson, Daryl Rictor, Grant Searle, and many users and articles on the 6502.org forum.
