@@ -1,11 +1,24 @@
   ; commands
-  DRAW_PIXEL = 0
-  GO_TEXT = 1
-  GO_TILE = 2
-  GO_BITMAP = 3
-  CLEAR = 4
-  DRAW_TRI = 5
-  BACKSPACE = 8
+  DRAW_PIXEL = $00
+  GO_TEXT = $01
+  GO_TILE = $02
+  GO_BITMAP = $03
+  CLEAR = $04
+  DRAW_TRI = $05
+  ;res0
+  ;res1
+  BACKSPACE = $08
+  ;res2
+  ;LF
+  ;res3
+  ;res4
+  ;CR
+  GO_LORES = $0e
+  GO_HIRES = $0f
+  SET_ADDR = $7e
+  WRITE_RAW = $7f
+  DRAW_PIX_SEQ = $80
+  RESET = $ff
 
   ; colors
   BLACK = 0

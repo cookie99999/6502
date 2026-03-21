@@ -34,6 +34,10 @@ static uint dbus_offset;
 static uint dbus_pio_irq;
 
 volatile static bool cursor_state = false;
+extern unsigned char *framebuf;
+#define FBUF_SIZE 153600 * 2;
+volatile uint32_t fbuf_addr = 0;
+volatile bool lores = false;
 volatile struct repeating_timer timer;
 extern char textcolor;
 extern char textbgcolor;
@@ -52,7 +56,9 @@ volatile static char cur_state = TEXT_MODE;
 
 enum cmds {
   DRAW_PIXEL = 0, GO_TEXT, GO_TILE, GO_BITMAP, CLEAR, DRAW_TRI, RES0,
-  RES1, BACKSPACE, RES2, LF, RES3, RES4, CR
+  RES1, BACKSPACE, RES2, LF, RES3, RES4, CR, GO_LORES, GO_HIRES,
+  SET_ADDR = 0x7e, WRITE_RAW, DRAW_PIX_SEQ = 0x80,
+  RESET = 0xff
 };
 
 static void __not_in_flash_func(read_dbus)(void) {
@@ -93,87 +99,169 @@ bool toggle_cursor(__unused struct repeating_timer *t) {
   return true;
 }
 
+void vga_reset() {
+  cur_state = TEXT_MODE;
+  lores = false;
+  fbuf_addr = 0;
+  cancel_repeating_timer(&timer);
+  fill_rect(0, 0, 640, 480, CYAN);
+  set_text_size(1);
+  set_text_wrap(1);
+  set_cursor(0, 0);
+  set_text_color(BLACK, CYAN);
+  add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
+}
+
+void text_task(uint8_t byte);
+void bitmap_task(uint8_t byte);
+
 void dbus_task(void) {
   uint8_t byte;
   if (get_dbus_byte(&byte)) {
+    if (byte == RESET) {
+      vga_reset();
+      return;
+    }
     switch (cur_state) {
     case TEXT_MODE:
-      switch (byte) {
-      case GO_BITMAP:
-	cancel_repeating_timer(&timer);
-	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
-	cur_state = BITMAP_MODE;
-	break;
-      case CLEAR:
-	fill_rect(0, 0, 640, 480, textbgcolor);
-	cursor_x = 0;
-	cursor_y = 0;
-	break;
-      case BACKSPACE:
-	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
-	cursor_x -= textsize * 6;
-	if (cursor_x < 0) {
-	  cursor_y -= textsize * 8;
-	  cursor_x = (WIDTH - (textsize * 6));
-	}
-	fill_rect(cursor_x, cursor_y, 6 * textsize, 8 * textsize, textbgcolor);
-	break;
-      default:
-	cancel_repeating_timer(&timer);
-	fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
-	draw_char_cursor(byte);
-	add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
-	break;
-      }
+      text_task(byte);
       break;
     case BITMAP_MODE:
-      switch (byte) {
-      case DRAW_PIXEL: { //draw pixel xlo xhi ylo yhi color
-	uint16_t x = (uint16_t)get_dbus_byte_blocking();
-	x = x | ((uint16_t)get_dbus_byte_blocking() << 8);
-	uint16_t y = (uint16_t)get_dbus_byte_blocking();
-	y = y | ((uint16_t)get_dbus_byte_blocking() << 8);
-	uint8_t color = get_dbus_byte_blocking();
-	draw_pixel(x, y, color);
-      }
-	break;
-      case DRAW_TRI: { //draw_tri x1[2] y1[2] x2[2] y2[2] x3[2] y3[2] color
-	uint16_t x1 = (uint16_t)get_dbus_byte_blocking();
-	x1 = x1 | ((uint16_t)get_dbus_byte_blocking() << 8);
-	uint16_t y1 = (uint16_t)get_dbus_byte_blocking();
-	y1 = y1 | ((uint16_t)get_dbus_byte_blocking() << 8);
-
-	uint16_t x2 = (uint16_t)get_dbus_byte_blocking();
-	x2 = x2 | ((uint16_t)get_dbus_byte_blocking() << 8);
-	uint16_t y2 = (uint16_t)get_dbus_byte_blocking();
-	y2 = y2 | ((uint16_t)get_dbus_byte_blocking() << 8);
-
-	uint16_t x3 = (uint16_t)get_dbus_byte_blocking();
-	x3 = x3 | ((uint16_t)get_dbus_byte_blocking() << 8);
-	uint16_t y3 = (uint16_t)get_dbus_byte_blocking();
-	y3 = y3 | ((uint16_t)get_dbus_byte_blocking() << 8);
-	uint8_t color = get_dbus_byte_blocking();
-
-	draw_tri(x1, y1, x2, y2, x3, y3, color);
-      }
-	break;
-      case CLEAR: { //clear color
-	uint8_t color = get_dbus_byte_blocking();
-	fill_rect(0, 0, 640, 480, color);
-      }
-	break;
-      case GO_TEXT:
-	add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
-	cur_state = TEXT_MODE;
-	break;
-      default:
-	break;
-      }
+      bitmap_task(byte);
       break;
     default:
       break;
     }
   }
+}
+
+void text_task(uint8_t byte) {
+  switch (byte) {
+  case GO_BITMAP:
+    cancel_repeating_timer(&timer);
+    fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
+    cur_state = BITMAP_MODE;
+    break;
+  case CLEAR:
+    fill_rect(0, 0, 640, 480, textbgcolor);
+    cursor_x = 0;
+    cursor_y = 0;
+    break;
+  case BACKSPACE:
+    fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
+    cursor_x -= textsize * 6;
+    if (cursor_x < 0) {
+      cursor_y -= textsize * 8;
+      cursor_x = (WIDTH - (textsize * 6));
+    }
+    fill_rect(cursor_x, cursor_y, 6 * textsize, 8 * textsize, textbgcolor);
+    break;
+  default:
+    cancel_repeating_timer(&timer);
+    fill_rect(cursor_x, cursor_y, 6, 8, textbgcolor);
+    draw_char_cursor(byte);
+    add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
+    break;
+  }
+}
+
+void bitmap_task(uint8_t byte) {
+  switch (byte) {
+  case DRAW_PIXEL: //draw pixel xlo xhi ylo yhi color
+    {
+      uint16_t x = (uint16_t)get_dbus_byte_blocking();
+      x = x | ((uint16_t)get_dbus_byte_blocking() << 8);
+      uint16_t y = (uint16_t)get_dbus_byte_blocking();
+      y = y | ((uint16_t)get_dbus_byte_blocking() << 8);
+      uint8_t color = get_dbus_byte_blocking();
+      draw_pixel(x, y, color);
+    }
+    break;
+  case GO_LORES:
+    lores = true;
+    break;
+  case GO_HIRES:
+    lores = false;
+    break;
+  case DRAW_PIX_SEQ: //pixel data in low nibble of command
+  case DRAW_PIX_SEQ+1:
+  case DRAW_PIX_SEQ+2:
+  case DRAW_PIX_SEQ+3:
+  case DRAW_PIX_SEQ+4:
+  case DRAW_PIX_SEQ+5:
+  case DRAW_PIX_SEQ+6:
+  case DRAW_PIX_SEQ+7:
+  case DRAW_PIX_SEQ+8:
+  case DRAW_PIX_SEQ+9:
+  case DRAW_PIX_SEQ+10:
+  case DRAW_PIX_SEQ+11:
+  case DRAW_PIX_SEQ+12:
+  case DRAW_PIX_SEQ+13:
+  case DRAW_PIX_SEQ+14:
+  case DRAW_PIX_SEQ+15:
+    {
+      uint8_t color = byte & 0x0f;
+      if (!lores) {
+	uint16_t y = (fbuf_addr / WIDTH) + 1;
+	uint16_t x = (fbuf_addr % WIDTH) + 1;
+	draw_pixel(x, y, color);
+	fbuf_addr++;
+	if (fbuf_addr >= (WIDTH * HEIGHT))
+	  fbuf_addr = 0;
+      } else {
+	uint16_t y = (fbuf_addr / 128) * 5;
+	uint16_t x = (fbuf_addr % 128) * 5;
+	fill_rect(x, y, 5, 5, color);
+	fbuf_addr++;
+	if (fbuf_addr >= (128 * 96))
+	  fbuf_addr = 0;
+      }
+    }
+    break;
+  case WRITE_RAW: //byte
+    {
+      uint8_t byte = get_dbus_byte_blocking();
+      framebuf[fbuf_addr] = byte;
+    }
+    break;
+  case DRAW_TRI: //draw_tri x1[2] y1[2] x2[2] y2[2] x3[2] y3[2] color
+    {
+      uint16_t x1 = (uint16_t)get_dbus_byte_blocking();
+      x1 = x1 | ((uint16_t)get_dbus_byte_blocking() << 8);
+      uint16_t y1 = (uint16_t)get_dbus_byte_blocking();
+      y1 = y1 | ((uint16_t)get_dbus_byte_blocking() << 8);
+      
+      uint16_t x2 = (uint16_t)get_dbus_byte_blocking();
+      x2 = x2 | ((uint16_t)get_dbus_byte_blocking() << 8);
+      uint16_t y2 = (uint16_t)get_dbus_byte_blocking();
+      y2 = y2 | ((uint16_t)get_dbus_byte_blocking() << 8);
+      
+      uint16_t x3 = (uint16_t)get_dbus_byte_blocking();
+      x3 = x3 | ((uint16_t)get_dbus_byte_blocking() << 8);
+      uint16_t y3 = (uint16_t)get_dbus_byte_blocking();
+      y3 = y3 | ((uint16_t)get_dbus_byte_blocking() << 8);
+      uint8_t color = get_dbus_byte_blocking();
+      
+      draw_tri(x1, y1, x2, y2, x3, y3, color);
+    }
+    break;
+  case CLEAR: //clear color
+    {
+      uint8_t color = get_dbus_byte_blocking();
+      fill_rect(0, 0, 640, 480, color);
+    }
+    break;
+  case GO_TEXT:
+    add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
+    cur_state = TEXT_MODE;
+    break;
+  default:
+    break;
+  }
+}
+
+void tile_task(uint8_t byte) {
+
 }
 
 typedef struct {
@@ -272,12 +360,12 @@ vec3 rot(vec3 v) {
   roty.m[2][2] = cosy;
   return m2v(matmul(roty, v2m(v)));
 }
-  
+
 void threed_demo() {
   tri cube_faces[12] = {
     { {0, 0, -0.8}, {0, 0, 0}, {0, -0.8, 0} },
     { {0, 0, -0.8}, {0, 0, 0}, {0, -0.8, -0.8} },
-    
+
     { {-0.8, -0.8, -0.8}, {-0.8, -0.8, 0}, {-0.8, 0, 0} },
     { {-0.8, -0.8, -0.8}, {-0.8, 0, 0}, {-0.8, 0, -0.8} },
 
@@ -312,7 +400,7 @@ void threed_demo() {
   float sinz = sinf(15. * pi180);
   float cosy = cosf(5. * pi180);
   float siny = sinf(5. * pi180);
-  
+
   matrix roty = newmat(3, 3);
   roty.m[0][0] = cosy;
   roty.m[0][1] = 0.;
@@ -340,9 +428,9 @@ void threed_demo() {
   rotz.m[2][2] = 1.;
 
   //matrix rot = matmul(rotz, roty);
-  
+
   for (int i = 0; i < 12; i++) {
-    //vec3 screenv1 = 
+    //vec3 screenv1 =
     draw_tri((short)(project(persp(rot(cube_faces[i].v1))).x),
 	     (short)(project(persp(rot(cube_faces[i].v1))).y),
 
@@ -387,7 +475,7 @@ void main() {
   add_repeating_timer_ms(500, toggle_cursor, NULL, &timer);
 
   //threed_demo();
-  
+
   while (true) {
     dbus_task();
   }
