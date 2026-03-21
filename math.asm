@@ -1,14 +1,7 @@
-  .setcpu "65816"
-  .segment "CODE"
-  .include "bios.inc"
-  .include "hardware.inc"
-  .include "vga.inc"
+  .export mul_8
   .A8
   .I8
 
-  jsr mandel
-  rts
-  
 mul_8:	; factors in workb and workb2, low result in workb high result in workb2
   .A8
   .I8
@@ -95,134 +88,95 @@ mul_16_fix: ; takes signed numbers
   plx
   rts ; neg x neg = pos
 
-  x0 = $e000
-  x1 = $1000
-  y0 = $f000
-  y1 = $1000
-  xstep = $0013
-  ystep = $0011
-
-  cx = $30
-  cy = $32
-  xv = $34
-  yv = $36
-  x2 = $38
-  y2 = $3a
-  xy = $3c
-  
-mandel:
-  .A8
-  .I8
-  lda #GO_BITMAP
-  sta VGA_DATA
+div_16: ; x = ptr to 8 bytes of zp: num den quo rem
+  num = workw
+  den = workw2
+  quo = retw
+  rem = retw2
   ACC_16
-  lda #y0
-  sta cy
-  IND_16
-  ldx #480
-yloop:
-  lda #x0
-  sta cx
-  ldy #640
-xloop:
-  lda cx
-  sta xv
-  lda cy
-  sta yv
-  phx
+  stz quo, x
+  stz rem, x
+  ldy #15
+@loop:
+  asl num ; c = num[i]
+  rol rem ; rem[0] = c
+  lda rem
+  cmp den
+  bcc @skip ; if rem >= den
+  sbc den
+  sta rem ; rem -= den
   phy
-  IND_8
-  ldx #0
-nloop:
-  lda yv
-  sta workw
-  sta workw2
-  jsr mul_16_fix
-  lda workw
-  sta y2
-  lda xv
-  sta workw
-  sta workw2
-  jsr mul_16_fix
-  lda workw
-  sta x2
-  clc
-  adc y2
-  cmp #$4000
-  bcs @nend
-  lda xv
-  sta workw
-  lda yv
-  sta workw2
-  jsr mul_16_fix
-  lda workw
-  sta xy
-  clc
-  adc xy
-  adc cy
-  sta yv
-  lda x2
-  sec
-  sbc y2
-  adc cx
-  sta xv
-  inx
-  cpx #20
-  bne nloop
-@nend:
-  ACC_8
-  lda chartab, x
-  sta $44
-  ACC_16
-  lda cx
-  clc
-  adc #xstep
-  sta cx
-  IND_16
-  ply
-  plx
-  ACC_8
-  stx $42
-  ;stz $43
-  sty $40
-  ;stz $41
-  jsr put_pixel
-  ACC_16
+  lda #1
+  cpy #0
+  beq @shiftskip
+@shiftloop:
+  asl a
   dey
-  bne xloop
-  lda cy
-  clc
-  adc #ystep
-  sta cy
-  dex
-  beq :+
-  brl yloop
-:	
-  ACC_8
-  IND_8
-  lda #GO_TEXT
-  sta VGA_DATA
+  bne @shiftloop
+@shiftskip:
+  ply
+  ora quo ; quo[i] = 1
+  sta quo
+@skip:
+  dey
+  bpl @loop ; n=1 after underflow
   rts
   
-chartab:
-  .byte 15, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 1, 2, 3, 4, 5, 0
+sqrt_table:
+  .byte 0, 2, 6, 12, 20, 30, 42, 56, 72, 90, 110, 132, 156, 182, 210, 240
 
-put_pixel: ; at $40: xlo xhi ylo yhi color
-  lda #DRAW_PIXEL
-  sta VGA_DATA
-  nop
-  lda $40
-  sta VGA_DATA
-  nop
-  lda $41
-  sta VGA_DATA
-  nop
-  lda $42
-  sta VGA_DATA
-  nop
-  lda $43
-  sta VGA_DATA
-  nop
-  lda $44
-  sta VGA_DATA
+sqrt8:	; argument in a
+  phx
+  ldx #$00
+@loop:
+  cmp sqrt_table, x
+  bcs @skip
+  inx
+  bra @loop
+@skip:
+  lda sqrt_table, x
+  plx
+  rts
+  
+  ACC = $80
+  ARG = $82
+  TMP = $84
+sqrt16:
+  phx
+  ACC_16
+  lda ACC
+  sta ARG         ; Move ACC to ARG
+  stz ACC         ; Zero ACC & TMP
+  stz TMP
+  ldx #8         ; Gen X bits of sqrt
+  bne start       ; (always)
+loop:
+  asl ARG         ; Left shift TMP
+  rol TMP
+  asl ARG         ; by 2 bits.
+  rol TMP
+  lda TMP       ; Compare __ bits of TMP
+  cmp ACC       ; with current sqrt.
+  bne check
+  lda TMP         ; Compare next byte
+  cmp ACC
+  bne check
+start:
+  lda ARG       ; Compare final byte
+  and #$ff00
+  cmp #$4000
+check:
+  bcc shift0      ; TMP > sqrt
+  lda ARG       ; TMP <= sqrt, so subtract
+  sbc #$4000
+  sta ARG
+  lda TMP
+  sbc ACC
+  sta TMP
+shift0:
+  rol ACC         ; Rotate C into sqrt
+  dex             ; Done?
+  bne loop        ; -No, keep looping.
+  plx
+  ACC_8
   rts

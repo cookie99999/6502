@@ -3,6 +3,7 @@
   .include "bios.inc"
   .include "vga.inc"
   .include "cf.inc"
+  .include "fat16.inc"
 
   MHZ_MULT = 4 ; current installed clock speed
   JIF_COUNT = 9999 * MHZ_MULT ; 100hz counter
@@ -18,6 +19,8 @@
   .segment "CODE"
   .include "xmodem.asm"
   .include "prng.asm"
+  .include "filesystem.asm"
+  .include "math.asm"
 
   .A8
   .I8
@@ -77,6 +80,8 @@ reset:
   lda #>JIF_COUNT
   sta VIA1_T1C_H
 
+  lda #RESET
+  sta VGA_DATA
   LD_PTR str_boot
   jsr puts
 
@@ -631,6 +636,7 @@ nmi:
   jmp nmivec
   
 brkvec:
+  cli ; bios services will take some time so we want interrupts on during
   jsr (svc_table, x)
   rti
 
