@@ -14,6 +14,7 @@
   rand_8 = $e291
   getchar = $edd5
   prbyte = $ed91
+  putchar = $ed44
 
   ACC_16
   lda #buf_a
@@ -78,141 +79,184 @@ redraw:
 
 tick:
   count = $80
-  ldx #$00
-  ldy #$00
+  index = $82
   stz count
   ACC_16
   lda front
   pha
   lda back
   pha
+  stz index
   ACC_8
 tick_loop:
   ; count live neighbors
-  phy
-  phx
-checkleft:	
-  txa
+checkleft:
+  ACC_16
+  lda index
   sec
-  sbc #1 ; left
-  bpl @skip
-  lda #BLACK
-  bra :+
-@skip:
-  tax
-  jsr get_cell_at
-:	
-  cmp #WHITE
-  bne checkright
-  inc count
-checkright:	
-  txa
-  cmp #$7e
-  bcc @skip
-  lda #BLACK
-  bra :+
-@skip:
+  sbc #$0001
+  sta workw
+  eor index
+  cmp #$0010
+  bcc @dontwrap ; bit 7 didn't flip
+  lda workw
   clc
-  adc #2 ; right
-  tax
-  jsr get_cell_at
-:	
-  cmp #WHITE
-  bne checktop
-  inc count
-checktop:
-  plx ; restore original x
-  phx ; but save again for later
-  tya
-  sec
-  sbc #1 ; top
-  bpl @skip
-  lda #BLACK
-  bra :+
-@skip:
-  tay
-  jsr get_cell_at
-:	
-  cmp #WHITE
-  bne checkbottom
-  inc count
-checkbottom:	
-  tya
-  cmp #$5e
-  bcc @skip
-  lda #BLACK
-  bra :+
-@skip:
+  adc #$0080
+  sta workw
+@dontwrap:
+  lda workw
+  sta workw2 ; save for tl+bl
   clc
-  adc #2 ; bottom
-  tay
-  jsr get_cell_at
-:	
-  cmp #WHITE
-  bne checkbotleft
-  inc count
-checkbotleft:	
-  txa
-  sec
-  sbc #1 ; bottom left
-  bpl @skip
-  lda #BLACK
-  bra :+
-@skip:
-  tax
-  jsr get_cell_at
-:	
-  cmp #WHITE
-  bne checkbotright
-  inc count
-checkbotright:
-  txa
-  cmp #$7e
-  bcc @skip
-  lda #BLACK
-  bra :+
-@skip:
-  clc
-  adc #2 ; bottom right
-  and #$7f
-  tax
-  jsr get_cell_at
-:	
-  cmp #WHITE
-  bne checktopright
-  inc count
-checktopright:
-  tya
-  sec
-  sbc #2 ; top right
-  bpl @skip
-  lda #BLACK
-  bra :+
-@skip:
-  tay
-  jsr get_cell_at
-:	
+  adc 3, S ; front buffer base
+  sta workw
+  ACC_8
+  lda (workw)
   cmp #WHITE
   bne checktopleft
   inc count
 checktopleft:
-  txa
+  ACC_16
+  lda workw2
   sec
-  sbc #2 ; top left
-  bpl @skip
-  lda #BLACK
-  bra :+
-@skip:
-  tax
-  jsr get_cell_at
-:	
+  sbc #$0080
+  sta workw
+  cmp #$3000
+  bcc @dontwrap
+  lda workw
+  clc
+  adc #$3000
+@dontwrap:
+  clc
+  adc 3, S
+  sta workw
+  ACC_8
+  lda (workw)
+  cmp #WHITE
+  bne checkbotleft
+  inc count
+checkbotleft:
+  ACC_16
+  lda workw2
+  clc
+  adc #$0080
+  sta workw
+  cmp #$3000
+  bcc @dontwrap
+  sec
+  sbc #$3000
+@dontwrap:
+  clc
+  adc 3, S
+  sta workw
+  ACC_8
+  lda (workw)
+  cmp #WHITE
+  bne checkright
+  inc count
+checkright:
+  ACC_16
+  lda index
+  clc
+  adc #$0001
+  sta workw
+  eor index
+  cmp #$0010
+  bcc @dontwrap ; bit 7 didn't flip
+  lda workw
+  sec
+  sbc #$0080
+  sta workw
+@dontwrap:
+  lda workw
+  sta workw2 ; save for tr+br
+  clc
+  adc 3, S ; front buffer base
+  sta workw
+  ACC_8
+  lda (workw)
+  cmp #WHITE
+  bne checktopright
+  inc count
+checktopright:
+  ACC_16
+  lda workw2
+  sec
+  sbc #$0080
+  sta workw
+  cmp #$3000
+  bcc @dontwrap
+  lda workw
+  clc
+  adc #$3000
+@dontwrap:
+  clc
+  adc 3, S
+  sta workw
+  ACC_8
+  lda (workw)
+  cmp #WHITE
+  bne checkbotright
+  inc count
+checkbotright:
+  ACC_16
+  lda workw2
+  clc
+  adc #$0080
+  sta workw
+  cmp #$3000
+  bcc @dontwrap
+  sec
+  sbc #$3000
+@dontwrap:
+  clc
+  adc 3, S
+  sta workw
+  ACC_8
+  lda (workw)
+  cmp #WHITE
+  bne checktop
+  inc count
+checktop:
+  ACC_16
+  lda index
+  sec
+  sbc #$0080
+  sta workw
+  cmp #$3000
+  bcc @dontwrap
+  lda workw
+  clc
+  adc #$3000
+@dontwrap:
+  clc
+  adc 3, S
+  sta workw
+  ACC_8
+  lda (workw)
+  cmp #WHITE
+  bne checkbottom
+  inc count
+checkbottom:	
+  ACC_16
+  lda index
+  clc
+  adc #$0080
+  sta workw
+  cmp #$3000
+  bcc @dontwrap
+  sec
+  sbc #$3000
+@dontwrap:
+  clc
+  adc 3, S
+  sta workw
+  ACC_8
+  lda (workw)
   cmp #WHITE
   bne dorules
   inc count
 dorules:
   ; neighbors counted, apply rules
-  plx
-  ply
   lda (front)
   cmp #BLACK
   beq @dead
@@ -239,58 +283,22 @@ dorules:
   ; live cells with 2 or 3 neighbors remain untouched
   lda (front)
   sta (back)
-end_cell:	
+end_cell:
+  stz count
   ACC_16
   inc front
   inc back
-  ACC_8
-  stz count
-  inx
-  cpx #$80
-  beq :+
+  inc index
+  lda index
+  cmp #$3000
+  bcs :+
   brl tick_loop
 :	
-  ldx #$00
-  iny
-  cpy #$60
-  beq :+
-  brl tick_loop
-:
-  ACC_16
   pla
   sta back
   pla
   sta front
   ACC_8  
-  rts
-
-get_cell_at: ; return byte in framebuffer at x,y
-  index = workw
-  phx
-  phy
-  tya
-  sta workb
-  lda #$80
-  sta workb2
-  jsr mul_8
-  ACC_16
-  lda workb
-  sta index
-  ply
-  plx
-  phx
-  txa
-  and #$00ff
-  clc
-  adc index
-  sta index
-  lda index
-  clc
-  adc $08, S ; saved copy of front base, kind of a pain to get it this way
-  sta index
-  ACC_8
-  lda (index)
-  plx
   rts
 
 seed_field:
