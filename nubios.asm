@@ -41,7 +41,7 @@ init:
   
   lda #$00
   sta ACIA_STAT ;reset
-  lda #$1e ;8n1, 9600
+  lda #$1f ;8n1, 19200
   sta ACIA_CTRL
   lda #$0b ; dtrb low rx irq disabled rtsb low no parity normal echo mode
   sta ACIA_CMD
