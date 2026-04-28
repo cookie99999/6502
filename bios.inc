@@ -48,6 +48,8 @@
   workq2l = $2e
   workq2h = $30
   retw = $32
+  retwh = $32
+  retwl = $33
   retw2 = $34
   scratch = $36 ; beginning of general purpose scratch space
   
